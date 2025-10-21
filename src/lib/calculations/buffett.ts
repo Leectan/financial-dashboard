@@ -71,10 +71,10 @@ export async function getBuffettHistory(): Promise<BuffettHistoryPoint[]> {
   const gdpPoints = gdp.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
 
   function getGDPFor(dateISO: string): number | null {
-    // Find nearest GDP before date (simple step function); interpolation is possible but optional
     const t = new Date(dateISO).getTime()
     for (let i = gdpPoints.length - 1; i >= 0; i--) {
       const gi = gdpPoints[i]
+      if (!gi) continue
       const gt = new Date(gi.date).getTime()
       if (gt <= t && !Number.isNaN(gi.value)) return gi.value
     }
