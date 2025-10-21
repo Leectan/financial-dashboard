@@ -48,21 +48,21 @@ interface APIResponse<T> {
 }
 
 async function fetchM2(): Promise<M2Data> {
-  const response = await fetch('/api/indicators/m2?start=1959-01-01')
+  const response = await fetch('/api/indicators/m2?start=1959-01-01', { cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch M2 data')
   const json: APIResponse<M2Data> = await response.json()
   return json.data
 }
 
 async function fetchYieldCurve(): Promise<YieldCurveData> {
-  const response = await fetch('/api/indicators/treasury?start=1950-01-01')
+  const response = await fetch('/api/indicators/treasury?start=1950-01-01', { cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch yield curve data')
   const json: APIResponse<YieldCurveData> = await response.json()
   return json.data
 }
 
 async function fetchBuffett(): Promise<BuffettData> {
-  const response = await fetch('/api/indicators/buffett')
+  const response = await fetch('/api/indicators/buffett', { cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch Buffett indicator data')
   const json: APIResponse<BuffettData> = await response.json()
   return json.data
@@ -72,11 +72,10 @@ export function useM2(): UseQueryResult<M2Data> {
   return useQuery({
     queryKey: ['indicator', 'm2', '1959-01-01'],
     queryFn: fetchM2,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 }
 
@@ -84,11 +83,10 @@ export function useYieldCurve(): UseQueryResult<YieldCurveData> {
   return useQuery({
     queryKey: ['indicator', 'yield-curve', '1950-01-01'],
     queryFn: fetchYieldCurve,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 }
 
@@ -96,11 +94,10 @@ export function useBuffett(): UseQueryResult<BuffettData> {
   return useQuery({
     queryKey: ['indicator', 'buffett'],
     queryFn: fetchBuffett,
-    staleTime: 30000,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 }
 
