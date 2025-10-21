@@ -8,9 +8,12 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  const expectedAuth = `Bearer ${process.env.CRON_SECRET}`
-  if (authHeader !== expectedAuth) {
+  const url = new URL(request.url)
+  const tokenParam = url.searchParams.get('token')?.trim()
+  const authHeader = request.headers.get('authorization')?.trim()
+  const secret = (process.env.CRON_SECRET || '').trim()
+  const expectedAuth = `Bearer ${secret}`
+  if (!(authHeader === expectedAuth || (tokenParam && tokenParam === secret))) {
     console.warn('Unauthorized cron request')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
