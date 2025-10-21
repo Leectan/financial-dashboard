@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CONFIG } from '@/lib/config'
+import { fetchWithRetry } from '@/lib/utils/retry'
 import { getCached, setCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
 const YahooQuoteSchema = z.object({
@@ -46,16 +47,16 @@ class YahooFinanceClient {
 
   private async fetchQuote(symbol: string) {
     const url = `${this.baseUrl}/${encodeURIComponent(symbol)}`
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; FinancialDashboard/1.0; +https://example.com)'
-      },
-      cache: 'no-store',
+    const json = await fetchWithRetry(async () => {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; FinancialDashboard/1.0; +https://example.com)'
+        },
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error(`Yahoo Finance returned HTTP ${res.status}`)
+      return (await res.json()) as unknown
     })
-    if (!res.ok) {
-      throw new Error(`Yahoo Finance returned HTTP ${res.status}`)
-    }
-    const json = (await res.json()) as unknown
     const parsed = YahooQuoteSchema.safeParse(json)
     if (!parsed.success) {
       throw new Error('Invalid Yahoo response: ' + JSON.stringify(parsed.error.issues))
@@ -70,12 +71,14 @@ class YahooFinanceClient {
 
   private async fetchHistory(symbol: string, range = 'max', interval: '1mo' | '1wk' | '1d' = '1mo'): Promise<HistoryPoint[]> {
     const url = `${this.baseUrl}/${encodeURIComponent(symbol)}?range=${range}&interval=${interval}`
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinancialDashboard/1.0; +https://example.com)' },
-      cache: 'no-store',
+    const json = await fetchWithRetry(async () => {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinancialDashboard/1.0; +https://example.com)' },
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error(`Yahoo Finance history HTTP ${res.status}`)
+      return (await res.json()) as unknown
     })
-    if (!res.ok) throw new Error(`Yahoo Finance history HTTP ${res.status}`)
-    const json = (await res.json()) as unknown
     const parsed = YahooHistorySchema.safeParse(json)
     if (!parsed.success) throw new Error('Invalid Yahoo history response: ' + JSON.stringify(parsed.error.issues))
     const results = parsed.data.chart.result

@@ -32,9 +32,23 @@ export async function GET(request: Request) {
     if (fallback) {
       return NextResponse.json({ data: { ...fallback, stale: true }, cached: true, lastUpdated: new Date().toISOString() })
     }
-    return NextResponse.json(
-      { error: 'Failed to fetch yield curve', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    )
+    // Last resort: return empty but non-error payload so UI never hard-fails
+    return NextResponse.json({
+      data: {
+        spread: 0,
+        treasury10Y: NaN,
+        treasury2Y: NaN,
+        inverted: false,
+        interpretation: 'Data unavailable right now',
+        recessionProbability: 'Unknown',
+        date10Y: new Date().toISOString().slice(0,10),
+        date2Y: new Date().toISOString().slice(0,10),
+        calculatedAt: new Date().toISOString(),
+        historicalContext: 'Temporary data outage; showing placeholder until cache warms.',
+        history: []
+      },
+      cached: false,
+      lastUpdated: new Date().toISOString()
+    })
   }
 }
