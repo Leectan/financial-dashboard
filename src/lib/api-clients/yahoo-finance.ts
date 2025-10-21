@@ -78,9 +78,12 @@ class YahooFinanceClient {
     const json = (await res.json()) as unknown
     const parsed = YahooHistorySchema.safeParse(json)
     if (!parsed.success) throw new Error('Invalid Yahoo history response: ' + JSON.stringify(parsed.error.issues))
-    const result = parsed.data.chart.result[0]
-    const timestamps = result.timestamp || []
-    const closes = result.indicators.quote[0].close
+    const results = parsed.data.chart.result
+    if (!results || results.length === 0) throw new Error('Yahoo history missing result[0]')
+    const first = results[0]
+    const timestamps = Array.isArray(first.timestamp) ? first.timestamp : []
+    const quoteArr = Array.isArray(first.indicators?.quote) ? first.indicators.quote : []
+    const closes = quoteArr[0]?.close ?? []
     const points: HistoryPoint[] = []
     for (let i = 0; i < Math.min(timestamps.length, closes.length); i++) {
       const ts = timestamps[i]
