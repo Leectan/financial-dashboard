@@ -18,7 +18,9 @@ class FREDAPIClient {
   private readonly baseUrl: string
 
   constructor() {
-    this.apiKey = process.env.FRED_API_KEY
+    const raw = process.env.FRED_API_KEY || ''
+    const trimmed = raw.trim()
+    this.apiKey = trimmed || undefined
     this.baseUrl = CONFIG.api.fred.baseUrl
   }
 
