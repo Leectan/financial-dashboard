@@ -5,7 +5,7 @@ import { redis } from '@/lib/cache/redis'
 
 const ratelimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(10, '1 m'),
+  limiter: Ratelimit.slidingWindow(60, '1 m'),
   analytics: true,
   prefix: 'ratelimit',
 })
@@ -13,7 +13,7 @@ const ratelimit = new Ratelimit({
 export async function middleware(request: NextRequest) {
   const { pathname } = new URL(request.url)
   if (!pathname.startsWith('/api/')) return NextResponse.next()
-  if (pathname === '/api/health') return NextResponse.next()
+  if (pathname === '/api/health' || pathname === '/api/cron/update') return NextResponse.next()
 
   const forwardedFor = request.headers.get('x-forwarded-for')?.split(',')[0]
   const ip = forwardedFor || request.headers.get('x-real-ip') || request.ip || '127.0.0.1'

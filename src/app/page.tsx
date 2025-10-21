@@ -20,17 +20,21 @@ export default function DashboardPage() {
   const [sentiment, setSentiment] = useState<any>(null)
   const [jobless, setJobless] = useState<any>(null)
   const [vix, setVix] = useState<any>(null)
+  const [margin, setMargin] = useState<any>(null)
+  const [defaults, setDefaults] = useState<any>(null)
 
   useEffect(() => {
     ;(async () => {
       try {
-        const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes] = await Promise.all([
+        const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes, marginRes, defaultsRes] = await Promise.all([
           fetch('/api/indicators/sahm').then((r) => r.json()),
           fetch('/api/indicators/housing').then((r) => r.json()),
           fetch('/api/indicators/pmi').then((r) => r.json()),
           fetch('/api/indicators/sentiment').then((r) => r.json()),
           fetch('/api/indicators/jobless').then((r) => r.json()),
           fetch('/api/indicators/vix').then((r) => r.json()),
+          fetch('/api/indicators/margin').then((r) => r.json()),
+          fetch('/api/indicators/defaults').then((r) => r.json()),
         ])
         setSahm(sahmRes.data)
         setHousing(housingRes.data)
@@ -38,6 +42,8 @@ export default function DashboardPage() {
         setSentiment(sentimentRes.data)
         setJobless(joblessRes.data)
         setVix(vixRes.data)
+        setMargin(marginRes.data)
+        setDefaults(defaultsRes.data)
       } catch {}
     })()
   }, [])
@@ -68,16 +74,11 @@ export default function DashboardPage() {
         </header>
 
         <DashboardGrid>
-          <IndicatorCard
-            title="M2 Money Supply"
-            value={m2.data ? `$${(m2.data.current / 1000).toFixed(2)}T` : 'Loading...'}
-            subtitle={m2.data?.date}
-            interpretation="Weekly updates from Federal Reserve"
-            error={m2.error as Error | null}
-            isLoading={m2.isLoading}
-          >
-            {m2.data && <M2Chart data={m2.data.historical} />}
-          </IndicatorCard>
+          {vix && (
+            <IndicatorCard title="VIX (Fear Gauge)" value={`${vix.current.toFixed(2)}`} subtitle="Higher = more fear">
+              <SimpleLineChart data={vix.history} valueLabel="VIX" valueFormatter={(v) => `${v.toFixed(2)}`} refLines={[{ y: 12, color: '#22c55e' }, { y: 20, color: '#f59e0b' }, { y: 30, color: '#dc2626' }]} defaultWindowCount={156} />
+            </IndicatorCard>
+          )}
 
           <IndicatorCard
             title="10Y/2Y Treasury Yield Spread"
@@ -158,11 +159,31 @@ export default function DashboardPage() {
             </IndicatorCard>
           )}
 
-          {vix && (
-            <IndicatorCard title="VIX (Fear Gauge)" value={`${vix.current.toFixed(2)}`} subtitle="Higher = more fear">
-              <SimpleLineChart data={vix.history} valueLabel="VIX" valueFormatter={(v) => `${v.toFixed(2)}`} refLines={[{ y: 12, color: '#22c55e' }, { y: 20, color: '#f59e0b' }, { y: 30, color: '#dc2626' }]} defaultWindowCount={156} />
+          {margin && (
+            <IndicatorCard title="Margin Debt (NYSE)" value={margin.current ? `${margin.current.toFixed(0)}B` : ''} subtitle="Monthly">
+              <SimpleLineChart data={margin.values} valueLabel="Margin" valueFormatter={(v) => `${v.toFixed(0)}B`} defaultWindowCount={240} />
             </IndicatorCard>
           )}
+
+          {defaults && (
+            <IndicatorCard title="Default Rates" value={''} subtitle="Consumer Delinquency & Credit Card Charge-offs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <SimpleLineChart data={defaults.consumerDelinquency} valueLabel="Consumer Delinquency" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
+                <SimpleLineChart data={defaults.creditCardChargeOffs} valueLabel="CC Charge-offs" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
+              </div>
+            </IndicatorCard>
+          )}
+
+          <IndicatorCard
+            title="M2 Money Supply"
+            value={m2.data ? `$${(m2.data.current / 1000).toFixed(2)}T` : 'Loading...'}
+            subtitle={m2.data?.date}
+            interpretation="Weekly updates from Federal Reserve"
+            error={m2.error as Error | null}
+            isLoading={m2.isLoading}
+          >
+            {m2.data && <M2Chart data={m2.data.historical} />}
+          </IndicatorCard>
         </DashboardGrid>
 
         <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">

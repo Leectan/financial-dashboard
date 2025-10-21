@@ -16,14 +16,26 @@ export interface YieldCurveResult {
 export interface YieldCurveHistoryPoint { date: string; spread: number }
 
 export async function calculateYieldCurveSpread(): Promise<YieldCurveResult> {
-  const [tenY, twoY] = await Promise.all([
-    fredAPI.getLatestObservation('DGS10'),
-    fredAPI.getLatestObservation('DGS2'),
-  ])
+  // Get spread directly from T10Y2Y
+  const latestSpread = await fredAPI.getLatestObservation('T10Y2Y')
+  let treasury10Y = NaN
+  let treasury2Y = NaN
+  let date10Y = latestSpread.date
+  let date2Y = latestSpread.date
+  try {
+    const [tenY, twoY] = await Promise.all([
+      fredAPI.getLatestObservation('DGS10'),
+      fredAPI.getLatestObservation('DGS2'),
+    ])
+    treasury10Y = tenY.value
+    treasury2Y = twoY.value
+    date10Y = tenY.date
+    date2Y = twoY.date
+  } catch {
+    // Non-fatal if DGS endpoints fail, we still return spread using T10Y2Y
+  }
 
-  const treasury10Y = tenY.value
-  const treasury2Y = twoY.value
-  const spread = treasury10Y - treasury2Y
+  const spread = latestSpread.value
   const inverted = spread < 0
 
   let interpretation = 'Normal Range'
@@ -48,24 +60,16 @@ export async function calculateYieldCurveSpread(): Promise<YieldCurveResult> {
     inverted,
     interpretation,
     recessionProbability,
-    date10Y: tenY.date,
-    date2Y: twoY.date,
+    date10Y,
+    date2Y,
     calculatedAt: new Date(),
     historicalContext: 'Yield curve inversions have preceded most US recessions with 12-24 month lead time.',
   }
 }
 
 export async function getYieldCurveHistory(startISO: string = '1950-01-01'): Promise<YieldCurveHistoryPoint[]> {
-  const { tenY, twoY } = await fredAPI.getTreasuryHistory(startISO)
-  // Map by date for two series
-  const map2 = new Map(twoY.map((o) => [o.date, parseFloat(o.value)]))
-  const series: YieldCurveHistoryPoint[] = []
-  for (const o of tenY) {
-    const v10 = parseFloat(o.value)
-    const v2 = map2.get(o.date)
-    if (!Number.isNaN(v10) && v2 != null && !Number.isNaN(v2)) {
-      series.push({ date: o.date, spread: v10 - v2 })
-    }
-  }
+  const series = await fredAPI.getSeriesFromStart('T10Y2Y', startISO)
   return series
+    .filter((o) => o.value !== null && o.value !== undefined && o.value !== '.' && o.value !== '')
+    .map((o) => ({ date: o.date, spread: parseFloat(o.value) }))
 }
