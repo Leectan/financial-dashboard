@@ -10,6 +10,7 @@ const SERIES_TTLS: Record<string, number> = {
   GDPC1: CACHE_TTL.GDP,
   DGS10: CACHE_TTL.TREASURY_YIELDS,
   DGS2: CACHE_TTL.TREASURY_YIELDS,
+  T10Y2Y: CACHE_TTL.TREASURY_YIELDS,
 }
 
 class FREDAPIClient {
@@ -43,7 +44,8 @@ class FREDAPIClient {
     const result = await fetchWithRetry(async () => {
       const res = await fetch(url.toString())
       if (!res.ok) {
-        const msg = `FRED API returned HTTP ${res.status}`
+        const text = await res.text().catch(() => '')
+        const msg = `FRED API returned HTTP ${res.status}${text ? `: ${text}` : ''}`
         throw new APIError(msg, res.status, 'FRED')
       }
       const json = await res.json()
@@ -73,7 +75,7 @@ class FREDAPIClient {
     const cached = await getCached<FREDSeries>(cacheKey)
     if (cached) return cached
 
-    const observations = await this.fetchSeriesRaw(seriesId, 0, { observation_start: startISO, sort_order: 'asc' })
+    const observations = await this.fetchSeriesRaw(seriesId, 0, { observation_start: startISO })
     await setCached(cacheKey, observations, SERIES_TTLS[seriesId] ?? CACHE_TTL.TREASURY_YIELDS)
     return observations
   }
