@@ -22,9 +22,11 @@ export async function GET(request: NextRequest) {
   const updates = await Promise.allSettled([
     (async () => {
       const data = await fredAPI.getM2MoneySupply()
+      const first = data[0]
+      if (!first) throw new Error('No M2 observations')
       const formatted = {
-        current: parseFloat(data[0].value),
-        date: data[0].date,
+        current: parseFloat(first.value),
+        date: first.date,
         historical: data.slice(0, 20).map((obs) => ({ date: obs.date, value: parseFloat(obs.value) })),
         unit: 'Billions of Dollars',
         source: 'FRED (WM2NS)',
@@ -36,7 +38,6 @@ export async function GET(request: NextRequest) {
     (async () => {
       const data = await calculateYieldCurveSpread()
       await setCached(CACHE_KEYS.INDICATOR_YIELD_CURVE, data, CACHE_TTL.YIELD_CURVE)
-      // Warm long-history variant
       const hist = await getYieldCurveHistory('1950-01-01')
       await setCached(`${CACHE_KEYS.INDICATOR_YIELD_CURVE}:start:1950-01-01`, { ...data, history: hist }, CACHE_TTL.YIELD_CURVE)
       results.yieldCurve = 'success'
@@ -47,13 +48,13 @@ export async function GET(request: NextRequest) {
       results.buffett = 'success'
     })(),
     (async () => {
-      // Margin debt warm
       const series = await fredAPI.getSeriesFromStart('MDSP', '1970-01-01')
-      await setCached(`${CACHE_KEYS.INDICATOR_MARGIN}:start:1970-01-01`, { current: parseFloat(series[series.length - 1].value), date: series[series.length - 1].date, values: series.map((o) => ({ date: o.date, value: parseFloat(o.value) })) }, CACHE_TTL.MONTHLY)
+      const last = series[series.length - 1]
+      if (!last) throw new Error('No margin debt observations')
+      await setCached(`${CACHE_KEYS.INDICATOR_MARGIN}:start:1970-01-01`, { current: parseFloat(last.value), date: last.date, values: series.map((o) => ({ date: o.date, value: parseFloat(o.value) })) }, CACHE_TTL.MONTHLY)
       results.margin = 'success'
     })(),
     (async () => {
-      // Defaults warm
       const [consumerDelq, ccChargeOff] = await Promise.all([
         fredAPI.getSeriesFromStart('DRCLACBS', '1990-01-01'),
         fredAPI.getSeriesFromStart('CORCACBS', '1990-01-01'),
