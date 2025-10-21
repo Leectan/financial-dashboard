@@ -1,0 +1,139 @@
+import { z } from 'zod'
+import { CONFIG } from '@/lib/config'
+import { fetchWithRetry } from '@/lib/utils/retry'
+import { getCached, setCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
+import { APIError } from '@/lib/utils/errors'
+import { FREDObservationSchema, FREDResponseSchema, type FREDSeries, type FREDObservation } from './types'
+
+const SERIES_TTLS: Record<string, number> = {
+  WM2NS: CACHE_TTL.M2,
+  GDPC1: CACHE_TTL.GDP,
+  DGS10: CACHE_TTL.TREASURY_YIELDS,
+  DGS2: CACHE_TTL.TREASURY_YIELDS,
+}
+
+class FREDAPIClient {
+  private readonly apiKey: string | undefined
+  private readonly baseUrl: string
+
+  constructor() {
+    this.apiKey = process.env.FRED_API_KEY
+    this.baseUrl = CONFIG.api.fred.baseUrl
+  }
+
+  private ensureApiKey() {
+    if (!this.apiKey) {
+      throw new Error('FRED_API_KEY is required')
+    }
+  }
+
+  private async fetchSeriesRaw(seriesId: string, limit: number = 100, params?: Record<string, string>): Promise<FREDSeries> {
+    this.ensureApiKey()
+    const url = new URL(`${this.baseUrl}/series/observations`)
+    url.searchParams.set('series_id', seriesId)
+    url.searchParams.set('api_key', this.apiKey as string)
+    url.searchParams.set('file_type', 'json')
+    if (params) {
+      for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
+    } else {
+      url.searchParams.set('sort_order', 'desc')
+      url.searchParams.set('limit', String(limit))
+    }
+
+    const result = await fetchWithRetry(async () => {
+      const res = await fetch(url.toString())
+      if (!res.ok) {
+        const msg = `FRED API returned HTTP ${res.status}`
+        throw new APIError(msg, res.status, 'FRED')
+      }
+      const json = await res.json()
+      const parsed = FREDResponseSchema.safeParse(json)
+      if (!parsed.success) {
+        throw new Error('Invalid FRED response: ' + JSON.stringify(parsed.error.issues))
+      }
+      return parsed.data.observations
+    })
+
+    return result
+  }
+
+  async getSeries(seriesId: string, cacheTTL?: number, limit: number = 100): Promise<FREDSeries> {
+    const cacheKey = CACHE_KEYS.FRED_SERIES(seriesId)
+    const cached = await getCached<FREDSeries>(cacheKey)
+    if (cached) return cached
+
+    const observations = await this.fetchSeriesRaw(seriesId, limit)
+    const ttl = cacheTTL ?? SERIES_TTLS[seriesId] ?? CACHE_TTL.TREASURY_YIELDS
+    await setCached(cacheKey, observations, ttl)
+    return observations
+  }
+
+  async getSeriesFromStart(seriesId: string, startISO: string): Promise<FREDSeries> {
+    const cacheKey = CACHE_KEYS.FRED_SERIES_RANGE(seriesId, startISO)
+    const cached = await getCached<FREDSeries>(cacheKey)
+    if (cached) return cached
+
+    const observations = await this.fetchSeriesRaw(seriesId, 0, { observation_start: startISO, sort_order: 'asc' })
+    await setCached(cacheKey, observations, SERIES_TTLS[seriesId] ?? CACHE_TTL.TREASURY_YIELDS)
+    return observations
+  }
+
+  async getLatestObservation(seriesId: string): Promise<{ value: number; date: string }> {
+    const observations = await this.getSeries(seriesId, undefined, 1)
+    const latest = observations[0]
+    if (!latest) {
+      throw new Error(`No observations returned for ${seriesId}`)
+    }
+    const value = parseFloat(latest.value)
+    if (Number.isNaN(value)) {
+      throw new Error(`Invalid numeric value for ${seriesId}`)
+    }
+    return { value, date: latest.date }
+  }
+
+  async getLatestValue(seriesId: string): Promise<number> {
+    const { value } = await this.getLatestObservation(seriesId)
+    return value
+  }
+
+  // Convenience methods
+  async getM2(): Promise<FREDSeries> {
+    return this.getSeries('WM2NS', CACHE_TTL.M2)
+  }
+
+  async getM2History(startISO: string): Promise<FREDSeries> {
+    return this.getSeriesFromStart('WM2NS', startISO)
+  }
+
+  async getGDP(): Promise<FREDSeries> {
+    return this.getSeries('GDPC1', CACHE_TTL.GDP)
+  }
+
+  async getGDPHistory(startISO: string): Promise<FREDSeries> {
+    return this.getSeriesFromStart('GDPC1', startISO)
+  }
+
+  async getTreasury10Y(): Promise<FREDSeries> {
+    return this.getSeries('DGS10', CACHE_TTL.TREASURY_YIELDS)
+  }
+
+  async getTreasury2Y(): Promise<FREDSeries> {
+    return this.getSeries('DGS2', CACHE_TTL.TREASURY_YIELDS)
+  }
+
+  async getTreasuryHistory(startISO: string): Promise<{ tenY: FREDSeries; twoY: FREDSeries }> {
+    const [tenY, twoY] = await Promise.all([
+      this.getSeriesFromStart('DGS10', startISO),
+      this.getSeriesFromStart('DGS2', startISO),
+    ])
+    return { tenY, twoY }
+  }
+
+  // Alias for sample route usage
+  async getM2MoneySupply(): Promise<FREDSeries> {
+    return this.getM2()
+  }
+}
+
+export type { FREDObservation, FREDSeries }
+export const fredAPI = new FREDAPIClient()
