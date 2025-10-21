@@ -81,12 +81,13 @@ class YahooFinanceClient {
     const results = parsed.data.chart.result
     if (!results || results.length === 0) throw new Error('Yahoo history missing result[0]')
     const first = results[0]
+    if (!first) throw new Error('Yahoo history empty first result')
     const timestamps = Array.isArray(first.timestamp) ? first.timestamp : []
-    const quoteArr = Array.isArray(first.indicators?.quote) ? first.indicators.quote : []
-    const closes = quoteArr[0]?.close ?? []
+    const quoteArr = Array.isArray(first.indicators && first.indicators.quote) ? first.indicators.quote : []
+    const closes = (quoteArr[0] && Array.isArray(quoteArr[0].close) ? quoteArr[0].close : []) as Array<number | null>
     const points: HistoryPoint[] = []
     for (let i = 0; i < Math.min(timestamps.length, closes.length); i++) {
-      const ts = timestamps[i]
+      const ts = timestamps[i] as number
       const close = closes[i]
       if (close != null) {
         points.push({ date: new Date(ts * 1000).toISOString().slice(0, 10), price: close })
