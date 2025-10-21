@@ -7,10 +7,11 @@ export const runtime = 'edge'
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const start = searchParams.get('start') || '1950-01-01'
+  const fresh = searchParams.get('fresh') === '1'
 
   const cacheKey = `${CACHE_KEYS.INDICATOR_YIELD_CURVE}:start:${start}`
   try {
-    const cached = await getCached<any>(cacheKey)
+    const cached = fresh ? null : await getCached<any>(cacheKey)
     if (cached) {
       return NextResponse.json({ data: cached, cached: true, lastUpdated: cached.calculatedAt || new Date().toISOString() })
     }

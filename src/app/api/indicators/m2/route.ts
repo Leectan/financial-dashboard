@@ -8,9 +8,10 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const start = searchParams.get('start') || '1959-01-01'
+    const fresh = searchParams.get('fresh') === '1'
 
     const cacheKey = `${CACHE_KEYS.INDICATOR_M2}:start:${start}`
-    const cached = await getCached<any>(cacheKey)
+    const cached = fresh ? null : await getCached<any>(cacheKey)
     if (cached) {
       return NextResponse.json({ data: cached, cached: true, lastUpdated: cached.lastUpdated || new Date().toISOString() })
     }

@@ -61,9 +61,9 @@ class FREDAPIClient {
     return result
   }
 
-  async getSeries(seriesId: string, cacheTTL?: number, limit: number = 100): Promise<FREDSeries> {
+  async getSeries(seriesId: string, cacheTTL?: number, limit: number = 100, fresh = false): Promise<FREDSeries> {
     const cacheKey = CACHE_KEYS.FRED_SERIES(seriesId)
-    const cached = await getCached<FREDSeries>(cacheKey)
+    const cached = fresh ? null : await getCached<FREDSeries>(cacheKey)
     if (cached) return cached
 
     const observations = await this.fetchSeriesRaw(seriesId, limit)
@@ -72,9 +72,9 @@ class FREDAPIClient {
     return observations
   }
 
-  async getSeriesFromStart(seriesId: string, startISO: string): Promise<FREDSeries> {
+  async getSeriesFromStart(seriesId: string, startISO: string, fresh = false): Promise<FREDSeries> {
     const cacheKey = CACHE_KEYS.FRED_SERIES_RANGE(seriesId, startISO)
-    const cached = await getCached<FREDSeries>(cacheKey)
+    const cached = fresh ? null : await getCached<FREDSeries>(cacheKey)
     if (cached) return cached
 
     const observations = await this.fetchSeriesRaw(seriesId, 0, { observation_start: startISO })

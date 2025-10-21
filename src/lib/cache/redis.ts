@@ -46,7 +46,8 @@ export const CACHE_TTL = {
   M2: 86400, // 24 hours
   GDP: 604800, // 7 days
   TREASURY_YIELDS: 3600, // 1 hour
-  WILSHIRE: 3600, // 1 hour
+  WILSHIRE: 300, // 5 minutes for near-real-time quotes
+  VIX: 300, // 5 minutes for fear gauge
   BUFFETT: 86400, // 24 hours
   YIELD_CURVE: 3600, // 1 hour
   HEALTH: 300, // 5 minutes
