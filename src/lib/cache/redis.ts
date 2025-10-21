@@ -1,13 +1,17 @@
 import { Redis } from '@upstash/redis'
 
-if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-  // Do not throw in environments where envs are not set during build; clients may import.
+const RAW_URL = process.env.UPSTASH_REDIS_REST_URL || ''
+const RAW_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || ''
+const TRIMMED_URL = RAW_URL.trim()
+const TRIMMED_TOKEN = RAW_TOKEN.trim()
+
+if (!TRIMMED_URL || !TRIMMED_TOKEN) {
   console.warn('Redis environment variables are missing: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN')
 }
 
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || 'https://example.invalid',
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || 'invalid',
+  url: TRIMMED_URL || 'https://example.invalid',
+  token: TRIMMED_TOKEN || 'invalid',
 })
 
 export const CACHE_KEYS = {
