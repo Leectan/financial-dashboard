@@ -55,10 +55,25 @@ async function fetchM2(): Promise<M2Data> {
 }
 
 async function fetchYieldCurve(): Promise<YieldCurveData> {
-  const response = await fetch('/api/indicators/treasury?start=1950-01-01', { cache: 'no-store' })
-  if (!response.ok) throw new Error('Failed to fetch yield curve data')
-  const json: APIResponse<YieldCurveData> = await response.json()
-  return json.data
+  // Try fresh first, then fallback to cached route
+  const tryOnce = async (fresh: boolean) => {
+    const url = fresh ? '/api/indicators/treasury?start=1950-01-01&fresh=1' : '/api/indicators/treasury?start=1950-01-01'
+    const res = await fetch(url, { cache: 'no-store' })
+    // Even if not ok, try to parse JSON, since server may return placeholder payload
+    let json: any = null
+    try {
+      json = await res.json()
+    } catch {}
+    if (json && json.data) return json.data as YieldCurveData
+    if (!res.ok) throw new Error('Failed to fetch yield curve data')
+    throw new Error('Invalid yield curve payload')
+  }
+
+  try {
+    return await tryOnce(true)
+  } catch {
+    return await tryOnce(false)
+  }
 }
 
 async function fetchBuffett(): Promise<BuffettData> {
@@ -86,7 +101,7 @@ export function useYieldCurve(): UseQueryResult<YieldCurveData> {
     staleTime: 5 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 0,
   })
 }
 
