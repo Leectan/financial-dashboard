@@ -23,7 +23,17 @@ export async function GET(request: Request) {
       getYieldCurveHistory(start),
     ])
 
-    const data = { ...current, history }
+    // If current reading is newer than the last historical point, append it so the chart shows "today"
+    let mergedHistory = history
+    try {
+      const lastHist = history[history.length - 1]
+      const currentDate = (current.date10Y || current.date2Y)
+      if (currentDate && (!lastHist || lastHist.date < currentDate)) {
+        mergedHistory = [...history, { date: currentDate, spread: current.spread }]
+      }
+    } catch {}
+
+    const data = { ...current, history: mergedHistory }
     await setCached(cacheKey, data, CACHE_TTL.YIELD_CURVE)
     return NextResponse.json({ data, cached: false, lastUpdated: new Date().toISOString() })
   } catch (error) {
