@@ -68,10 +68,17 @@ export async function GET(request: NextRequest) {
       }, CACHE_TTL.MONTHLY)
       results.defaults = 'success'
     })(),
+    (async () => {
+      const series = await fredAPI.getSeriesFromStart('RRPONTSYD', '2014-01-01')
+      const values = series.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
+      const last = values[values.length - 1]
+      await setCached(`${CACHE_KEYS.INDICATOR_RRP}:start:2014-01-01`, { current: last?.value ?? null, date: last?.date ?? null, values }, CACHE_TTL.M2)
+      results.rrp = 'success'
+    })(),
   ])
 
   updates.forEach((result, index) => {
-    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults']
+    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp']
     if (result.status === 'rejected') {
       // @ts-ignore
       results[names[index]] = 'failed'

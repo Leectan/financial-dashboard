@@ -19,3 +19,4 @@ export interface WilshireQuote {
   date: Date
 }
 
+

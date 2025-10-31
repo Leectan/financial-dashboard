@@ -20,9 +20,7 @@ export const CONFIG = {
     requestsPerMinute: 10,
     windowMs: 60000,
   },
-  refetch: {
-    intervalMs: 60000,
-    staleTimeMs: 30000,
-  },
+  // No automatic refetch - manual refresh only via the Refresh button
 } as const
+
 

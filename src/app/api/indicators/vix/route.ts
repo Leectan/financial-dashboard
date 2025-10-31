@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
     // Always attempt to fetch Yahoo for up-to-date current price (intraday)
     let currentValue: number
-    let currentDate: string | Date
+    let currentDate: Date
     try {
       const quote = await yahooFinanceClient.getSymbolQuote('^VIX')
       currentValue = quote.price
@@ -40,10 +40,20 @@ export async function GET(request: Request) {
       const last = history[history.length - 1]
       if (!last) throw new Error('No VIX data available from either provider')
       currentValue = last.value
-      currentDate = last.date
+      currentDate = new Date(last.date)
     }
 
-    const data = { current: currentValue, date: currentDate, history }
+    // If the intraday current date is newer than FRED's last point, append it to history
+    const lastHist = history[history.length - 1]
+    const currentISO = currentDate.toISOString().slice(0, 10)
+    if (!lastHist || lastHist.date < currentISO) {
+      history = [...history, { date: currentISO, value: currentValue }]
+    } else if (lastHist.date === currentISO) {
+      // ensure last point reflects the latest price
+      history = [...history.slice(0, -1), { date: currentISO, value: currentValue }]
+    }
+
+    const data = { current: currentValue, date: currentISO, history }
     await setCached(key, data, CACHE_TTL.VIX)
     return NextResponse.json({ data, cached: false, lastUpdated: new Date().toISOString() })
   } catch (e) {

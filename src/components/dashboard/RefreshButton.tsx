@@ -9,15 +9,29 @@ export function RefreshButton() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
+    // Calculate optimized date range (last 10 years)
+    const startDate = new Date()
+    startDate.setFullYear(startDate.getFullYear() - 10)
+    const start = startDate.toISOString().slice(0, 10)
+
     // Force-refresh each API by adding fresh=1 once to break cache for this request
     await Promise.allSettled([
       fetch('/api/indicators/vix?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/treasury?start=1950-01-01&fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/m2?start=1959-01-01&fresh=1', { cache: 'no-store' }),
+      fetch(`/api/indicators/treasury?start=${start}&fresh=1`, { cache: 'no-store' }),
+      fetch(`/api/indicators/m2?start=${start}&fresh=1`, { cache: 'no-store' }),
       fetch('/api/indicators/buffett?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/sahm?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/housing?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/pmi?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/sentiment?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/jobless?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/margin?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/defaults?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/rrp?fresh=1', { cache: 'no-store' }),
     ])
     await queryClient.invalidateQueries({ queryKey: ['indicator'] })
-    setTimeout(() => setIsRefreshing(false), 1000)
+    // Reload the page data to ensure all components get fresh data
+    window.location.reload()
   }
 
   return (

@@ -17,60 +17,55 @@ export interface YieldCurveResult {
 export interface YieldCurveHistoryPoint { date: string; spread: number }
 
 export async function calculateYieldCurveSpread(): Promise<YieldCurveResult> {
-  // Prefer near-real-time Yahoo yields if available
-  let treasury10Y = NaN
-  let treasury2Y = NaN
-  let date10Y = ''
-  let date2Y = ''
+  // Strategy: Use Yahoo intraday for "current" 10Y and 2Y when available; fallback to FRED latest.
+  // History remains FRED (handled by getYieldCurveHistory).
+  let tenYValue: number | null = null
+  let twoYValue: number | null = null
+  let date10Y: string = ''
+  let date2Y: string = ''
 
+  // Try Yahoo first for intraday values
   try {
-    const [t10, t2] = await Promise.all([
-      yahooFinanceClient.getSymbolQuote('^TNX'), // 10-year yield index (x10)
-      (async () => {
-        try { return await yahooFinanceClient.getSymbolQuote('^UST2Y') } catch { return await yahooFinanceClient.getSymbolQuote('^US2Y') }
-      })(),
-    ])
-    treasury10Y = t10.price / 10
-    treasury2Y = t2.price // already in percent
-    date10Y = new Date(t10.date).toISOString().slice(0, 10)
-    date2Y = new Date(t2.date).toISOString().slice(0, 10)
-  } catch {
-    // Yahoo failed; fall back to FRED daily data
-    const latestSpread = await fredAPI.getLatestObservation('T10Y2Y')
-    try {
-      const [tenY, twoY] = await Promise.all([
-        fredAPI.getLatestObservation('DGS10'),
-        fredAPI.getLatestObservation('DGS2'),
-      ])
-      treasury10Y = tenY.value
-      treasury2Y = twoY.value
-      date10Y = tenY.date
-      date2Y = twoY.date
-    } catch {
-      // As a last resort, compute from spread only
-      treasury10Y = NaN
-      treasury2Y = NaN
-      date10Y = latestSpread.date
-      date2Y = latestSpread.date
-    }
+    const tenYQuote = await yahooFinanceClient.getSymbolQuote('^TNX') // 10-year yield index; value is yield * 10
+    tenYValue = tenYQuote.price / 10
+    date10Y = tenYQuote.date.toISOString().slice(0, 10)
+  } catch {}
 
-    const spread = latestSpread.value
-    const inverted = spread < 0
-    return {
-      spread,
-      treasury10Y,
-      treasury2Y,
-      inverted,
-      interpretation: spread < -0.5 ? 'Deeply Inverted - Strong Recession Signal' : spread < 0 ? 'Inverted - Recession Warning' : spread < 0.5 ? 'Flattening - Caution Warranted' : spread < 1.0 ? 'Normal Range' : spread < 2.0 ? 'Healthy Positive Slope' : 'Steep Curve - Strong Growth Signal',
-      recessionProbability: spread < -0.5 ? 'Very High (70-80% within 12-24 months)' : spread < 0 ? 'High (50-70% within 12-24 months)' : spread < 0.5 ? 'Moderate (30-50%)' : spread < 1.0 ? 'Low (10-30%)' : 'Very Low (<10%)',
-      date10Y,
-      date2Y,
-      calculatedAt: new Date(),
-      historicalContext: 'Yield curve inversions have preceded most US recessions with 12-24 month lead time.',
-    }
+  // Attempt multiple 2Y symbols before falling back to FRED
+  try {
+    const twoYQuote = await yahooFinanceClient.getSymbolQuote('^UST2Y')
+    twoYValue = twoYQuote.price
+    date2Y = twoYQuote.date.toISOString().slice(0, 10)
+  } catch {
+    try {
+      const twoYQuoteAlt = await yahooFinanceClient.getSymbolQuote('US2Y')
+      twoYValue = twoYQuoteAlt.price
+      date2Y = twoYQuoteAlt.date.toISOString().slice(0, 10)
+    } catch {}
   }
 
-  const spread = treasury10Y - treasury2Y
+  // Fallback to FRED if Yahoo unavailable
+  if (tenYValue == null) {
+    const tenYfred = await fredAPI.getLatestObservation('DGS10')
+    tenYValue = tenYfred.value
+    date10Y = tenYfred.date
+  }
+  if (twoYValue == null) {
+    const twoYfred = await fredAPI.getLatestObservation('DGS2')
+    twoYValue = twoYfred.value
+    date2Y = twoYfred.date
+  }
+
+  const spreadFromYields = tenYValue - twoYValue
+
+  // Also get FRED spread as a secondary reference (in case of oddities)
+  let fredSpread: number | null = null
+  try {
+    const s = await fredAPI.getLatestObservation('T10Y2Y')
+    fredSpread = s.value
+  } catch {}
+
+  const spread = Number.isFinite(spreadFromYields) ? spreadFromYields : (fredSpread ?? 0)
   const inverted = spread < 0
 
   let interpretation = 'Normal Range'
@@ -90,8 +85,8 @@ export async function calculateYieldCurveSpread(): Promise<YieldCurveResult> {
 
   return {
     spread,
-    treasury10Y,
-    treasury2Y,
+    treasury10Y: tenYValue,
+    treasury2Y: twoYValue,
     inverted,
     interpretation,
     recessionProbability,

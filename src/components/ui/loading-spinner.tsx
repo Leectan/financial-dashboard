@@ -16,3 +16,4 @@ export function LoadingSpinner({ size = 'medium' }: LoadingSpinnerProps) {
   )
 }
 
+

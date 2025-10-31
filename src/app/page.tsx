@@ -22,30 +22,51 @@ export default function DashboardPage() {
   const [vix, setVix] = useState<any>(null)
   const [margin, setMargin] = useState<any>(null)
   const [defaults, setDefaults] = useState<any>(null)
+  const [rrp, setRrp] = useState<any>(null)
 
   useEffect(() => {
+    const controller = new AbortController()
+    const signal = controller.signal
+
+    const fetchWithTimeout = (url: string, timeout = 10000) => {
+      return Promise.race([
+        fetch(url, { signal }).then((r) => r.json()),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), timeout)
+        )
+      ])
+    }
+
     ;(async () => {
       try {
-        const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes, marginRes, defaultsRes] = await Promise.all([
-          fetch('/api/indicators/sahm').then((r) => r.json()),
-          fetch('/api/indicators/housing').then((r) => r.json()),
-          fetch('/api/indicators/pmi').then((r) => r.json()),
-          fetch('/api/indicators/sentiment').then((r) => r.json()),
-          fetch('/api/indicators/jobless').then((r) => r.json()),
-          fetch('/api/indicators/vix').then((r) => r.json()),
-          fetch('/api/indicators/margin').then((r) => r.json()),
-          fetch('/api/indicators/defaults').then((r) => r.json()),
+        const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes, marginRes, defaultsRes, rrpRes] = await Promise.allSettled([
+          fetchWithTimeout('/api/indicators/sahm'),
+          fetchWithTimeout('/api/indicators/housing'),
+          fetchWithTimeout('/api/indicators/pmi', 5000), // Give PMI more time as it's slower
+          fetchWithTimeout('/api/indicators/sentiment'),
+          fetchWithTimeout('/api/indicators/jobless'),
+          fetchWithTimeout('/api/indicators/vix', 3000),
+          fetchWithTimeout('/api/indicators/margin'),
+          fetchWithTimeout('/api/indicators/defaults'),
+          fetchWithTimeout('/api/indicators/rrp'),
         ])
-        setSahm(sahmRes.data)
-        setHousing(housingRes.data)
-        setPmi(pmiRes.data)
-        setSentiment(sentimentRes.data)
-        setJobless(joblessRes.data)
-        setVix(vixRes.data)
-        setMargin(marginRes.data)
-        setDefaults(defaultsRes.data)
-      } catch {}
+
+        // Handle fulfilled promises only
+        if (sahmRes.status === 'fulfilled') setSahm(sahmRes.value.data)
+        if (housingRes.status === 'fulfilled') setHousing(housingRes.value.data)
+        if (pmiRes.status === 'fulfilled') setPmi(pmiRes.value.data)
+        if (sentimentRes.status === 'fulfilled') setSentiment(sentimentRes.value.data)
+        if (joblessRes.status === 'fulfilled') setJobless(joblessRes.value.data)
+        if (vixRes.status === 'fulfilled') setVix(vixRes.value.data)
+        if (marginRes.status === 'fulfilled') setMargin(marginRes.value.data)
+        if (defaultsRes.status === 'fulfilled') setDefaults(defaultsRes.value.data)
+        if (rrpRes.status === 'fulfilled') setRrp(rrpRes.value.data)
+      } catch (error) {
+        console.error('Error fetching indicators:', error)
+      }
     })()
+
+    return () => controller.abort()
   }, [])
 
   if (isLoading) {
@@ -77,6 +98,21 @@ export default function DashboardPage() {
           {vix && (
             <IndicatorCard title="VIX (Fear Gauge)" value={`${vix.current.toFixed(2)}`} subtitle="Higher = more fear">
               <SimpleLineChart data={vix.history} valueLabel="VIX" valueFormatter={(v) => `${v.toFixed(2)}`} refLines={[{ y: 12, color: '#22c55e' }, { y: 20, color: '#f59e0b' }, { y: 30, color: '#dc2626' }]} defaultWindowCount={156} />
+            </IndicatorCard>
+          )}
+
+          {rrp && (
+            <IndicatorCard
+              title="Federal Reserve Reverse Repo (ON RRP)"
+              value={rrp.current != null ? `$${(rrp.current / 1000).toFixed(2)}T` : ''}
+              subtitle="Overnight RRPs outstanding (daily)"
+            >
+              <SimpleLineChart
+                data={rrp.values}
+                valueLabel="RRP"
+                valueFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(2)}T` : `$${v.toFixed(0)}B`)}
+                defaultWindowCount={2520}
+              />
             </IndicatorCard>
           )}
 

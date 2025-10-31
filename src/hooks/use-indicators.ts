@@ -48,7 +48,12 @@ interface APIResponse<T> {
 }
 
 async function fetchM2(): Promise<M2Data> {
-  const response = await fetch('/api/indicators/m2?start=1959-01-01', { cache: 'no-store' })
+  // Optimize: fetch only last 10 years of M2 data
+  const startDate = new Date()
+  startDate.setFullYear(startDate.getFullYear() - 10)
+  const start = startDate.toISOString().slice(0, 10)
+
+  const response = await fetch(`/api/indicators/m2?start=${start}`, { cache: 'no-store' })
   if (!response.ok) throw new Error('Failed to fetch M2 data')
   const json: APIResponse<M2Data> = await response.json()
   return json.data
@@ -57,7 +62,11 @@ async function fetchM2(): Promise<M2Data> {
 async function fetchYieldCurve(): Promise<YieldCurveData> {
   // Try fresh first, then fallback to cached route
   const tryOnce = async (fresh: boolean) => {
-    const url = fresh ? '/api/indicators/treasury?start=1950-01-01&fresh=1' : '/api/indicators/treasury?start=1950-01-01'
+    // Optimize: fetch only last 10 years of history by default
+    const startDate = new Date()
+    startDate.setFullYear(startDate.getFullYear() - 10)
+    const start = startDate.toISOString().slice(0, 10)
+    const url = fresh ? `/api/indicators/treasury?start=${start}&fresh=1` : `/api/indicators/treasury?start=${start}`
     const res = await fetch(url, { cache: 'no-store' })
     // Even if not ok, try to parse JSON, since server may return placeholder payload
     let json: any = null
@@ -84,8 +93,12 @@ async function fetchBuffett(): Promise<BuffettData> {
 }
 
 export function useM2(): UseQueryResult<M2Data> {
+  const startDate = new Date()
+  startDate.setFullYear(startDate.getFullYear() - 10)
+  const start = startDate.toISOString().slice(0, 10)
+
   return useQuery({
-    queryKey: ['indicator', 'm2', '1959-01-01'],
+    queryKey: ['indicator', 'm2', start],
     queryFn: fetchM2,
     staleTime: 5 * 60 * 1000,
     refetchInterval: false,
@@ -95,13 +108,18 @@ export function useM2(): UseQueryResult<M2Data> {
 }
 
 export function useYieldCurve(): UseQueryResult<YieldCurveData> {
+  const startDate = new Date()
+  startDate.setFullYear(startDate.getFullYear() - 10)
+  const start = startDate.toISOString().slice(0, 10)
+
   return useQuery({
-    queryKey: ['indicator', 'yield-curve', '1950-01-01'],
+    queryKey: ['indicator', 'yield-curve', start],
     queryFn: fetchYieldCurve,
     staleTime: 5 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 0,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   })
 }
 

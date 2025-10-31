@@ -28,6 +28,7 @@ export const CACHE_KEYS = {
   INDICATOR_MARGIN: 'indicator:margin',
   INDICATOR_DEFAULT_HOUSING: 'indicator:default-housing',
   INDICATOR_DEFAULT_CREDIT: 'indicator:default-credit',
+  INDICATOR_RRP: 'indicator:rrp',
 
   // Raw data from APIs
   FRED_SERIES: (seriesId: string) => `fred:series:${seriesId}`,

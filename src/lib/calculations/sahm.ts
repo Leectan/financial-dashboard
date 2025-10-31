@@ -18,3 +18,4 @@ export async function calculateSahm(startISO: string = '1970-01-01'): Promise<Sa
   return { latest, date: latestObs?.date || '', triggered, interpretation, history }
 }
 
+
