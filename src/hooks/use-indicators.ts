@@ -23,6 +23,19 @@ export interface YieldCurveData {
   calculatedAt: string
   historicalContext: string
   history?: Array<{ date: string; spread: number }>
+  validation?: {
+    isValid: boolean
+    warnings: string[]
+    freshness: {
+      status: 'live' | 'delayed' | 'stale' | 'error'
+      ageInMinutes: number
+      ageInHours: number
+      timestamp: Date
+      formattedAge: string
+      isStale: boolean
+      warningMessage?: string
+    }
+  }
 }
 
 export interface BuffettData {
@@ -100,9 +113,9 @@ export function useM2(): UseQueryResult<M2Data> {
   return useQuery({
     queryKey: ['indicator', 'm2', start],
     queryFn: fetchM2,
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 24 * 60 * 60 * 1000, // M2 updates weekly, consider stale after 24 hours
+    refetchInterval: 60 * 60 * 1000, // Refetch every hour
+    refetchOnWindowFocus: true,
     retry: 1,
   })
 }
@@ -112,12 +125,22 @@ export function useYieldCurve(): UseQueryResult<YieldCurveData> {
   startDate.setFullYear(startDate.getFullYear() - 10)
   const start = startDate.toISOString().slice(0, 10)
 
+  // Enable smart auto-refresh for treasury yields
+  // During market hours (9:30 AM - 4:00 PM ET), refetch every 5 minutes
+  // Outside market hours, refetch every 1 hour
+  const getRefetchInterval = () => {
+    const now = new Date()
+    const etHour = now.getUTCHours() - 5 // Rough ET conversion (doesn't account for DST)
+    const isMarketHours = etHour >= 9 && etHour < 16
+    return isMarketHours ? 5 * 60 * 1000 : 60 * 60 * 1000 // 5 min or 1 hour
+  }
+
   return useQuery({
     queryKey: ['indicator', 'yield-curve', start],
     queryFn: fetchYieldCurve,
     staleTime: 5 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: getRefetchInterval(),
+    refetchOnWindowFocus: true, // Refresh when user returns to tab
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   })
@@ -127,9 +150,9 @@ export function useBuffett(): UseQueryResult<BuffettData> {
   return useQuery({
     queryKey: ['indicator', 'buffett'],
     queryFn: fetchBuffett,
-    staleTime: 5 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 24 * 60 * 60 * 1000, // Buffett updates daily, stale after 24h
+    refetchInterval: 60 * 60 * 1000, // Refetch every hour
+    refetchOnWindowFocus: true,
     retry: 1,
   })
 }

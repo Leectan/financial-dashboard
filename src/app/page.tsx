@@ -124,6 +124,10 @@ export default function DashboardPage() {
             alert={yieldCurve.data?.inverted}
             error={yieldCurve.error as Error | null}
             isLoading={yieldCurve.isLoading}
+            freshnessStatus={yieldCurve.data?.validation?.freshness?.status}
+            freshnessAge={yieldCurve.data?.validation?.freshness?.formattedAge}
+            validationWarnings={yieldCurve.data?.validation?.warnings}
+            dataTimestamp={yieldCurve.data?.date10Y}
           >
             {yieldCurve.data && (
               <YieldCurveChart
@@ -222,11 +226,13 @@ export default function DashboardPage() {
           </IndicatorCard>
         </DashboardGrid>
 
-        <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
+        <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400 space-y-2">
           <p>Data sources: Federal Reserve Economic Data (FRED), Yahoo Finance</p>
           <p className="mt-2">
-            Updates automatically every hour • Last updated:{' '}
-            {m2.data?.lastUpdated ? new Date(m2.data.lastUpdated).toLocaleString() : 'Unknown'}
+            Treasury yields update hourly • M2/GDP update daily • Use refresh button to force update
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            🟢 Live: {'<'}1h old • 🟡 Delayed: 1-24h old • 🔴 Stale: {'>'}24h old
           </p>
         </footer>
       </div>

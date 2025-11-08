@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculations/yield-curve'
 import { getCached, setCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
+import { validateYieldSpread, DATA_FRESHNESS_THRESHOLDS, calculateDataFreshness } from '@/lib/utils/data-validation'
 
 export const runtime = 'edge'
 
@@ -23,6 +24,28 @@ export async function GET(request: Request) {
       getYieldCurveHistory(start),
     ])
 
+    // Validate the data before returning
+    const validation = validateYieldSpread(
+      current.spread,
+      current.treasury10Y,
+      current.treasury2Y,
+      current.date10Y,
+      current.date2Y
+    )
+
+    // Log validation errors and warnings
+    if (validation.errors.length > 0) {
+      console.error('[Treasury API] Validation errors:', validation.errors)
+    }
+    if (validation.warnings.length > 0) {
+      console.warn('[Treasury API] Validation warnings:', validation.warnings)
+    }
+
+    // If critical validation errors, throw to trigger fallback
+    if (!validation.isValid) {
+      throw new Error(`Data validation failed: ${validation.errors.join(', ')}`)
+    }
+
     // If current reading is newer than the last historical point, append it so the chart shows "today"
     let mergedHistory = history
     try {
@@ -33,7 +56,15 @@ export async function GET(request: Request) {
       }
     } catch {}
 
-    const data = { ...current, history: mergedHistory }
+    const data = {
+      ...current,
+      history: mergedHistory,
+      validation: {
+        isValid: validation.isValid,
+        warnings: validation.warnings,
+        freshness: validation.freshness,
+      }
+    }
     await setCached(cacheKey, data, CACHE_TTL.YIELD_CURVE)
     return NextResponse.json({ data, cached: false, lastUpdated: new Date().toISOString() })
   } catch (error) {
