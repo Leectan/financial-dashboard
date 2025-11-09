@@ -2,8 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/update",
-      "schedule": "0 0 * * *",
-      "comment": "Daily at midnight UTC - Hobby plan limitation. Upgrade to Pro for every 4 hours (0 */4 * * *)"
+      "schedule": "0 0 * * *"
     }
   ]
 }
