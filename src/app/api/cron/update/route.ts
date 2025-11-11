@@ -3,6 +3,7 @@ import { fredAPI } from '@/lib/api-clients/fred'
 import { calculateBuffettIndicator } from '@/lib/calculations/buffett'
 import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculations/yield-curve'
 import { setCached, getCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
+import { validateYieldSpread } from '@/lib/utils/data-validation'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -39,10 +40,30 @@ export async function GET(request: NextRequest) {
       results.m2 = 'success'
     })(),
     (async () => {
-      const data = await calculateYieldCurveSpread()
-      await setCached(CACHE_KEYS.INDICATOR_YIELD_CURVE, data, CACHE_TTL.YIELD_CURVE)
+      const current = await calculateYieldCurveSpread()
       const hist = await getYieldCurveHistory('1950-01-01')
-      await setCached(`${CACHE_KEYS.INDICATOR_YIELD_CURVE}:start:1950-01-01`, { ...data, history: hist }, CACHE_TTL.YIELD_CURVE)
+
+      // Add validation metadata (same as API endpoint)
+      const validation = validateYieldSpread(
+        current.spread,
+        current.treasury10Y,
+        current.treasury2Y,
+        current.date10Y,
+        current.date2Y
+      )
+
+      const dataWithValidation = {
+        ...current,
+        history: hist,
+        validation: {
+          isValid: validation.isValid,
+          warnings: validation.warnings,
+          freshness: validation.freshness,
+        }
+      }
+
+      await setCached(CACHE_KEYS.INDICATOR_YIELD_CURVE, current, CACHE_TTL.YIELD_CURVE)
+      await setCached(`${CACHE_KEYS.INDICATOR_YIELD_CURVE}:start:1950-01-01`, dataWithValidation, CACHE_TTL.YIELD_CURVE)
       results.yieldCurve = 'success'
     })(),
     (async () => {
