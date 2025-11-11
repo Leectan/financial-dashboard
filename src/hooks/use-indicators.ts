@@ -75,10 +75,8 @@ async function fetchM2(): Promise<M2Data> {
 async function fetchYieldCurve(): Promise<YieldCurveData> {
   // Try fresh first, then fallback to cached route
   const tryOnce = async (fresh: boolean) => {
-    // Optimize: fetch only last 10 years of history by default
-    const startDate = new Date()
-    startDate.setFullYear(startDate.getFullYear() - 10)
-    const start = startDate.toISOString().slice(0, 10)
+    // Use 1950-01-01 to match cron job cache key
+    const start = '1950-01-01'
     const url = fresh ? `/api/indicators/treasury?start=${start}&fresh=1` : `/api/indicators/treasury?start=${start}`
     const res = await fetch(url, { cache: 'no-store' })
     // Even if not ok, try to parse JSON, since server may return placeholder payload
@@ -121,9 +119,8 @@ export function useM2(): UseQueryResult<M2Data> {
 }
 
 export function useYieldCurve(): UseQueryResult<YieldCurveData> {
-  const startDate = new Date()
-  startDate.setFullYear(startDate.getFullYear() - 10)
-  const start = startDate.toISOString().slice(0, 10)
+  // Use 1950-01-01 to match cron job cache key
+  const start = '1950-01-01'
 
   // Enable smart auto-refresh for treasury yields
   // During market hours (9:30 AM - 4:00 PM ET), refetch every 5 minutes
