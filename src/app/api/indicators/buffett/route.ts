@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { calculateBuffettIndicator, getBuffettHistory } from '@/lib/calculations/buffett'
 import { getCached, setCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
-export const runtime = 'edge'
+// Use Node.js runtime for longer execution time and better compatibility
+export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
   try {

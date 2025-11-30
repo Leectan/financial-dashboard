@@ -3,7 +3,8 @@ import { fredAPI } from '@/lib/api-clients/fred'
 import { yahooFinanceClient } from '@/lib/api-clients/yahoo-finance'
 import { getCached, setCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
-export const runtime = 'edge'
+// Use Node.js runtime because this route does heavier external calls (FRED + Yahoo)
+export const runtime = 'nodejs'
 
 export async function GET(request: Request) {
   try {
