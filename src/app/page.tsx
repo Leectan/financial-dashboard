@@ -12,7 +12,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useEffect, useState } from 'react'
 
 export default function DashboardPage() {
-  const { m2, yieldCurve, buffett, isLoading } = useAllIndicators()
+  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, isLoading } = useAllIndicators()
 
   const [sahm, setSahm] = useState<any>(null)
   const [housing, setHousing] = useState<any>(null)
@@ -147,6 +147,36 @@ export default function DashboardPage() {
             {buffett.data?.history && <BuffettHistoryChart history={buffett.data.history} />}
           </IndicatorCard>
 
+          {qqqDeviation.data && qqqDeviation.data.current && (
+            <IndicatorCard
+              title="QQQ 200-Day Deviation Index"
+              value={
+                qqqDeviation.data.current.deviationPct != null
+                  ? `${qqqDeviation.data.current.deviationPct.toFixed(1)}%`
+                  : 'N/A'
+              }
+              subtitle={
+                qqqDeviation.data.current.index != null
+                  ? `Percentile: ${qqqDeviation.data.current.index.toFixed(1)}`
+                  : 'Deviation vs 200-day moving average'
+              }
+            >
+              <SimpleLineChart
+                data={qqqDeviation.data.history
+                  .filter((p) => p.index != null)
+                  .map((p) => ({ date: p.date, value: p.index as number }))}
+                valueLabel="Deviation Percentile"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[
+                  { y: 70, color: '#22c55e' },
+                  { y: 85, color: '#f59e0b' },
+                  { y: 95, color: '#dc2626' },
+                ]}
+                defaultWindowCount={520}
+              />
+            </IndicatorCard>
+          )}
+
           {sahm && (
             <IndicatorCard
               title="Sahm Rule Recession Indicator"
@@ -207,6 +237,105 @@ export default function DashboardPage() {
                 <SimpleLineChart data={defaults.consumerDelinquency} valueLabel="Consumer Delinquency" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
                 <SimpleLineChart data={defaults.creditCardChargeOffs} valueLabel="CC Charge-offs" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
               </div>
+            </IndicatorCard>
+          )}
+
+          {hySpread.data && hySpread.data.current && (
+            <IndicatorCard
+              title="High-Yield Credit Spread"
+              value={`${hySpread.data.current.spread.toFixed(2)}%`}
+              subtitle="ICE BofA US High Yield OAS"
+            >
+              <SimpleLineChart
+                data={hySpread.data.history.map((p) => ({ date: p.date, value: p.spread }))}
+                valueLabel="Spread"
+                valueFormatter={(v) => `${v.toFixed(2)}%`}
+                defaultWindowCount={520}
+              />
+            </IndicatorCard>
+          )}
+
+          {putCall.data && putCall.data.current && (
+            <IndicatorCard
+              title="Put/Call Ratio Index"
+              value={
+                putCall.data.current.index != null
+                  ? putCall.data.current.index.toFixed(1)
+                  : putCall.data.current.smoothed?.toFixed(2) ?? 'N/A'
+              }
+              subtitle={
+                putCall.data.current.smoothed != null
+                  ? `Smoothed ratio: ${putCall.data.current.smoothed.toFixed(2)}`
+                  : 'Smoothed equity put/call ratio (higher index = more complacency)'
+              }
+            >
+              <SimpleLineChart
+                data={putCall.data.history
+                  .filter((p) => p.index != null)
+                  .map((p) => ({ date: p.date, value: p.index as number }))}
+                valueLabel="Complacency Index"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[
+                  { y: 25, color: '#22c55e' },
+                  { y: 70, color: '#f59e0b' },
+                  { y: 85, color: '#dc2626' },
+                ]}
+                defaultWindowCount={260}
+              />
+            </IndicatorCard>
+          )}
+
+          {fedExpectations.data && fedExpectations.data.current && (
+            <IndicatorCard
+              title="CME-Style Fed Expectations Index"
+              value={
+                fedExpectations.data.current.index != null
+                  ? fedExpectations.data.current.index.toFixed(1)
+                  : fedExpectations.data.current.easing != null
+                  ? `${fedExpectations.data.current.easing.toFixed(2)}%`
+                  : 'N/A'
+              }
+              subtitle={
+                fedExpectations.data.current.targetRate != null &&
+                fedExpectations.data.current.impliedRate != null
+                  ? `Target: ${fedExpectations.data.current.targetRate.toFixed(
+                      2,
+                    )}%, Implied: ${fedExpectations.data.current.impliedRate.toFixed(2)}%`
+                  : 'Implied easing from Fed funds futures vs FOMC target'
+              }
+            >
+              <SimpleLineChart
+                data={fedExpectations.data.history
+                  .filter((p) => p.index != null)
+                  .map((p) => ({ date: p.date, value: p.index as number }))}
+                valueLabel="Easing Expectation Index"
+                valueFormatter={(v) => v.toFixed(1)}
+                defaultWindowCount={520}
+              />
+            </IndicatorCard>
+          )}
+
+          {liquidity.data && liquidity.data.current && (
+            <IndicatorCard
+              title="Liquidity Index (Fed Net Liquidity)"
+              value={`${liquidity.data.current.index != null ? liquidity.data.current.index.toFixed(1) : 'N/A'}`}
+              subtitle={`YoY change: ${
+                liquidity.data.current.yoyChange != null ? `${liquidity.data.current.yoyChange.toFixed(1)}%` : 'N/A'
+              }`}
+            >
+              <SimpleLineChart
+                data={liquidity.data.history
+                  .filter((p) => p.index != null)
+                  .map((p) => ({ date: p.date, value: p.index as number }))}
+                valueLabel="Liquidity Index"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[
+                  { y: 20, color: '#dc2626' },
+                  { y: 40, color: '#f59e0b' },
+                  { y: 60, color: '#22c55e' },
+                ]}
+                defaultWindowCount={260}
+              />
             </IndicatorCard>
           )}
 

@@ -19,6 +19,11 @@ export const CACHE_KEYS = {
   INDICATOR_BUFFETT: 'indicator:buffett',
   INDICATOR_YIELD_CURVE: 'indicator:yield-curve',
   INDICATOR_M2: 'indicator:m2',
+  INDICATOR_LIQUIDITY: 'indicator:liquidity',
+  INDICATOR_QQQ_DEVIATION: 'indicator:qqq-deviation',
+  INDICATOR_HY_SPREAD: 'indicator:hy-spread',
+  INDICATOR_PUTCALL: 'indicator:put-call',
+  INDICATOR_FED_EXPECTATIONS: 'indicator:fed-expectations',
   INDICATOR_SAHM: 'indicator:sahm',
   INDICATOR_HOUSING: 'indicator:housing',
   INDICATOR_PMI: 'indicator:pmi',
@@ -51,6 +56,10 @@ export const CACHE_TTL = {
   VIX: 300, // 5 minutes for fear gauge
   BUFFETT: 86400, // 24 hours
   YIELD_CURVE: 3600, // 1 hour
+  LIQUIDITY: 60 * 60 * 6, // 6 hours - macro liquidity moves slowly
+  QQQ_DEVIATION: 900, // 15 minutes
+  HY_SPREAD: 60 * 60 * 6, // 6 hours
+  PUTCALL: 900, // 15 minutes
   HEALTH: 300, // 5 minutes
   CRON_STATUS: 3600, // 1 hour
   MONTHLY: 60 * 60 * 24 * 30, // 30 days
