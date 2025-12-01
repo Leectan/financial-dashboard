@@ -8,7 +8,7 @@ import { M2Chart } from '@/components/charts/M2Chart'
 import { YieldCurveChart } from '@/components/charts/YieldCurveChart'
 import { BuffettHistoryChart } from '@/components/charts/BuffettChart'
 import { SimpleLineChart } from '@/components/charts/SimpleLineChart'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 export default function DashboardPage() {
   const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity } = useAllIndicators()
@@ -78,18 +78,6 @@ export default function DashboardPage() {
   // NO BLOCKING isLoading gate - render immediately and let individual cards show their own loading states
 
   // Helper utilities for composite indices
-  const percentile = (values: number[], value: number): number => {
-    if (!values.length) return 50
-    const sorted = [...values].sort((a, b) => a - b)
-    let count = 0
-    for (const v of sorted) {
-      if (v <= value) count++
-      else break
-    }
-    const pct = (count - 1) / (sorted.length - 1 || 1)
-    return Math.min(100, Math.max(0, pct * 100))
-  }
-
   const average = (nums: number[]): number | null => {
     const filtered = nums.filter((n) => Number.isFinite(n))
     if (!filtered.length) return null
@@ -97,80 +85,214 @@ export default function DashboardPage() {
     return sum / filtered.length
   }
 
-  // Build Greed / Sentiment index (0-100 where higher = more greed/complacency)
-  const putCallIndex = putCall.data?.current?.index ?? null
+  type SeriesPoint = { date: string; value: number }
 
-  const vixValues = Array.isArray(vix?.history)
-    ? vix.history.map((p: any) => p.value).filter((v: any) => typeof v === 'number')
-    : []
-  const vixCurrent = typeof vix?.current === 'number' ? vix.current : null
-  const vixPct = vixCurrent != null && vixValues.length ? percentile(vixValues, vixCurrent) : null
-  const vixGreed = vixPct != null ? 100 - vixPct : null
-
-  const umichValues = Array.isArray(sentiment?.values)
-    ? sentiment.values.map((p: any) => p.value).filter((v: any) => typeof v === 'number')
-    : []
-  const umichCurrent =
-    Array.isArray(sentiment?.values) && sentiment.values.length
-      ? sentiment.values[sentiment.values.length - 1].value
-      : null
-  const umichPct = umichCurrent != null && umichValues.length ? percentile(umichValues, umichCurrent) : null
-  const umichGreed = umichPct != null ? umichPct : null
-
-  const greedComponents: number[] = []
-  if (typeof putCallIndex === 'number') greedComponents.push(putCallIndex)
-  if (typeof vixGreed === 'number') greedComponents.push(vixGreed)
-  if (typeof umichGreed === 'number') greedComponents.push(umichGreed)
-
-  const greedAvg = average(greedComponents)
-  const greedIndex: number | null = greedAvg != null ? Math.max(0, Math.min(100, greedAvg)) : null
-
-  // Liquidity risk (tightening = higher risk)
-  const liquidityIndex = liquidity.data?.current?.index ?? null
-  const liquidityRisk = liquidityIndex != null ? Math.max(0, Math.min(100, 100 - liquidityIndex)) : null
-
-  // Credit risk from HY spreads (tight spreads = higher risk)
-  let creditRisk: number | null = null
-  if (hySpread.data && hySpread.data.current) {
-    const spreads = hySpread.data.history.map((p) => p.spread).filter((v) => typeof v === 'number')
-    const currentSpread = hySpread.data.current.spread
-    const tightPct = spreads.length ? percentile(spreads, currentSpread) : null
-    creditRisk = tightPct != null ? 100 - tightPct : null
+  // Build percentile helper that pre-sorts values once
+  const makePercentileFn = (values: number[]): ((value: number) => number) => {
+    const sorted = [...values].sort((a, b) => a - b)
+    const n = sorted.length
+    return (value: number): number => {
+      if (!n) return 50
+      let count = 0
+      for (const v of sorted) {
+        if (v <= value) count++
+        else break
+      }
+      const pct = (count - 1) / (n - 1 || 1)
+      return Math.min(100, Math.max(0, pct * 100))
+    }
   }
 
-  // Valuation risk from Buffett ratio
-  let buffettRisk: number | null = null
-  if (buffett.data) {
-    const ratios = (buffett.data.history || []).map((p: any) => p.ratio).filter((v: any) => typeof v === 'number')
-    const currentRatio = buffett.data.ratio
-    const pct = ratios.length ? percentile(ratios, currentRatio) : null
-    buffettRisk = pct != null ? pct : null
+  // Helper: given a sorted series [{date, value}], get the latest value as of a given date
+  const makeAsOfGetter = <T extends { date: string }>(
+    series: T[],
+    getValue: (p: T) => number | null,
+  ): ((date: string) => number | null) => {
+    let i = 0
+    const n = series.length
+    return (date: string): number | null => {
+      while (i < n) {
+        const current = series[i]
+        if (!current || current.date > date) break
+        i++
+      }
+      const idx = i - 1
+      if (idx < 0) return null
+      const entry = series[idx]
+      if (!entry) return null
+      const v = getValue(entry)
+      return typeof v === 'number' && !Number.isNaN(v) ? v : null
+    }
   }
 
-  // Bubble risk composite (0-100)
-  let bubbleRiskIndex: number | null = null
-  {
-    const qqqRisk = qqqDeviation.data?.current?.index ?? null
-    const components: number[] = []
-    if (typeof buffettRisk === 'number') components.push(buffettRisk)
-    if (typeof qqqRisk === 'number') components.push(qqqRisk)
-    if (typeof liquidityRisk === 'number') components.push(liquidityRisk)
-    if (typeof creditRisk === 'number') components.push(creditRisk)
-    if (typeof greedIndex === 'number') components.push(greedIndex)
-    const avg = average(components)
-    bubbleRiskIndex = avg != null ? Math.max(0, Math.min(100, avg)) : null
-  }
+  const {
+    greedHistory,
+    bubbleHistory,
+    smartDumbHistory,
+    greedCurrent,
+    bubbleCurrent,
+    smartDumbCurrent,
+  } = useMemo(() => {
+    // Require all underlying series for historical composites
+    if (
+      !vix?.history ||
+      !Array.isArray(vix.history) ||
+      !sentiment?.values ||
+      !Array.isArray(sentiment.values) ||
+      !hySpread.data?.history ||
+      !liquidity.data?.history ||
+      !qqqDeviation.data?.history ||
+      !(buffett.data && Array.isArray(buffett.data.history))
+    ) {
+      return {
+        greedHistory: [] as SeriesPoint[],
+        bubbleHistory: [] as SeriesPoint[],
+        smartDumbHistory: [] as SeriesPoint[],
+        greedCurrent: null as number | null,
+        bubbleCurrent: null as number | null,
+        smartDumbCurrent: null as number | null,
+      }
+    }
 
-  // Smart vs Dumb Money proxy: higher = dumb more aggressive than "smart"
-  let smartDumbProxy: number | null = null
-  {
-    const components: number[] = []
-    if (typeof greedIndex === 'number') components.push(greedIndex)
-    if (typeof liquidityRisk === 'number') components.push(liquidityRisk)
-    if (typeof creditRisk === 'number') components.push(creditRisk)
-    const avg = average(components)
-    smartDumbProxy = avg != null ? Math.max(0, Math.min(100, avg)) : null
-  }
+    // Use QQQ deviation history (where index exists) as main time grid
+    const qqqHist = qqqDeviation.data.history
+      .filter((p) => p.index != null)
+      .map((p) => ({ date: p.date, qqqIndex: p.index as number }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    if (!qqqHist.length) {
+      return {
+        greedHistory: [] as SeriesPoint[],
+        bubbleHistory: [] as SeriesPoint[],
+        smartDumbHistory: [] as SeriesPoint[],
+        greedCurrent: null as number | null,
+        bubbleCurrent: null as number | null,
+        smartDumbCurrent: null as number | null,
+      }
+    }
+
+    const vixHist = [...vix.history].sort((a: any, b: any) => a.date.localeCompare(b.date))
+    const umichHist = [...sentiment.values].sort((a: any, b: any) => a.date.localeCompare(b.date))
+    const hyHist = [...hySpread.data.history].sort((a, b) => a.date.localeCompare(b.date))
+    const liqHist = [...liquidity.data.history].sort((a, b) => a.date.localeCompare(b.date))
+    const buffHist = [...(buffett.data.history || [])]
+      .map((p: any) => ({ date: p.date, ratio: p.ratio }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    const getVix = makeAsOfGetter(vixHist, (p: any) => p.value)
+    const getUmich = makeAsOfGetter(umichHist, (p: any) => p.value)
+    const getHy = makeAsOfGetter(hyHist, (p) => p.spread)
+    const getLiqIdx = makeAsOfGetter(liqHist, (p) => p.index)
+    const getBuff = makeAsOfGetter(buffHist, (p) => p.ratio)
+
+    type RawRow = {
+      date: string
+      vix: number
+      umich: number
+      hy: number
+      liqIdx: number
+      buff: number
+      qqqIndex: number
+    }
+
+    const rows: RawRow[] = []
+    const vixAll: number[] = []
+    const umichAll: number[] = []
+    const hyAll: number[] = []
+    const liqAll: number[] = []
+    const buffAll: number[] = []
+
+    for (const p of qqqHist) {
+      const date = p.date
+      const vixVal = getVix(date)
+      const umichVal = getUmich(date)
+      const hyVal = getHy(date)
+      const liqVal = getLiqIdx(date)
+      const buffVal = getBuff(date)
+      const qqqIndex = p.qqqIndex
+
+      if (
+        vixVal == null ||
+        umichVal == null ||
+        hyVal == null ||
+        liqVal == null ||
+        buffVal == null ||
+        qqqIndex == null
+      ) {
+        continue
+      }
+
+      rows.push({ date, vix: vixVal, umich: umichVal, hy: hyVal, liqIdx: liqVal, buff: buffVal, qqqIndex })
+      vixAll.push(vixVal)
+      umichAll.push(umichVal)
+      hyAll.push(hyVal)
+      liqAll.push(liqVal)
+      buffAll.push(buffVal)
+    }
+
+    if (!rows.length) {
+      return {
+        greedHistory: [] as SeriesPoint[],
+        bubbleHistory: [] as SeriesPoint[],
+        smartDumbHistory: [] as SeriesPoint[],
+        greedCurrent: null as number | null,
+        bubbleCurrent: null as number | null,
+        smartDumbCurrent: null as number | null,
+      }
+    }
+
+    const vixPctFn = makePercentileFn(vixAll)
+    const umichPctFn = makePercentileFn(umichAll)
+    const hyPctFn = makePercentileFn(hyAll)
+    const buffPctFn = makePercentileFn(buffAll)
+
+    const greedHistory: SeriesPoint[] = []
+    const bubbleHistory: SeriesPoint[] = []
+    const smartDumbHistory: SeriesPoint[] = []
+
+    for (const row of rows) {
+      const vixGreed = 100 - vixPctFn(row.vix)
+      const umichGreed = umichPctFn(row.umich)
+
+      const greedComponents: number[] = []
+      // Put/call is not available for free; rely on VIX + UMich
+      if (Number.isFinite(vixGreed)) greedComponents.push(vixGreed)
+      if (Number.isFinite(umichGreed)) greedComponents.push(umichGreed)
+
+      const greed = average(greedComponents)
+
+      const liquidityRisk = Math.max(0, Math.min(100, 100 - row.liqIdx))
+      const creditRisk = 100 - hyPctFn(row.hy)
+      const buffettRisk = buffPctFn(row.buff)
+      const qqqRisk = row.qqqIndex
+
+      const bubbleComponents: number[] = []
+      if (greed != null) bubbleComponents.push(greed)
+      if (Number.isFinite(liquidityRisk)) bubbleComponents.push(liquidityRisk)
+      if (Number.isFinite(creditRisk)) bubbleComponents.push(creditRisk)
+      if (Number.isFinite(buffettRisk)) bubbleComponents.push(buffettRisk)
+      if (Number.isFinite(qqqRisk)) bubbleComponents.push(qqqRisk)
+
+      const bubble = average(bubbleComponents)
+
+      const smartDumbComponents: number[] = []
+      if (greed != null) smartDumbComponents.push(greed)
+      if (Number.isFinite(liquidityRisk)) smartDumbComponents.push(liquidityRisk)
+      if (Number.isFinite(creditRisk)) smartDumbComponents.push(creditRisk)
+
+      const smartDumb = average(smartDumbComponents)
+
+      if (greed != null) greedHistory.push({ date: row.date, value: greed })
+      if (bubble != null) bubbleHistory.push({ date: row.date, value: bubble })
+      if (smartDumb != null) smartDumbHistory.push({ date: row.date, value: smartDumb })
+    }
+
+    const greedCurrent = greedHistory.length ? (greedHistory[greedHistory.length - 1]?.value ?? null) : null
+    const bubbleCurrent = bubbleHistory.length ? (bubbleHistory[bubbleHistory.length - 1]?.value ?? null) : null
+    const smartDumbCurrent = smartDumbHistory.length ? (smartDumbHistory[smartDumbHistory.length - 1]?.value ?? null) : null
+
+    return { greedHistory, bubbleHistory, smartDumbHistory, greedCurrent, bubbleCurrent, smartDumbCurrent }
+  }, [vix, sentiment, hySpread.data, liquidity.data, qqqDeviation.data, buffett.data])
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8">
@@ -435,16 +557,16 @@ export default function DashboardPage() {
             )}
           </IndicatorCard>
 
-          {/* Market Sentiment / Greed Index - ALWAYS show */}
+          {/* Market Sentiment / Greed Index - historical composite */}
           <IndicatorCard
             title="Market Sentiment / Greed Index"
-            value={greedIndex != null ? greedIndex.toFixed(1) : 'Loading...'}
+            value={greedCurrent != null ? greedCurrent.toFixed(1) : 'Loading...'}
             subtitle="0 = Extreme Fear, 100 = Extreme Greed"
-            isLoading={effectLoading && greedIndex == null}
+            isLoading={(effectLoading || !greedHistory.length)}
           >
-            {greedIndex != null && Array.isArray(vix?.history) && vix.history.length > 0 && (
+            {greedHistory.length > 0 && (
               <SimpleLineChart
-                data={vix.history.slice(-260).map((p: any) => ({ date: p.date, value: greedIndex as number }))}
+                data={greedHistory}
                 valueLabel="Greed Index"
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
@@ -457,16 +579,16 @@ export default function DashboardPage() {
             )}
           </IndicatorCard>
 
-          {/* Bubble Risk Composite - ALWAYS show */}
+          {/* Bubble Risk Composite - historical composite */}
           <IndicatorCard
             title="Bubble Risk Composite Index"
-            value={bubbleRiskIndex != null ? bubbleRiskIndex.toFixed(1) : 'Loading...'}
+            value={bubbleCurrent != null ? bubbleCurrent.toFixed(1) : 'Loading...'}
             subtitle="Composite of valuation, technicals, liquidity, credit, and sentiment"
-            isLoading={(effectLoading || qqqDeviation.isLoading || hySpread.isLoading || liquidity.isLoading || buffett.isLoading) && bubbleRiskIndex == null}
+            isLoading={(effectLoading || qqqDeviation.isLoading || hySpread.isLoading || liquidity.isLoading || buffett.isLoading) && !bubbleHistory.length}
           >
-            {bubbleRiskIndex != null && Array.isArray(qqqDeviation.data?.history) && qqqDeviation.data.history.length > 0 && (
+            {bubbleHistory.length > 0 && (
               <SimpleLineChart
-                data={qqqDeviation.data.history.slice(-260).map((p: any) => ({ date: p.date, value: bubbleRiskIndex as number }))}
+                data={bubbleHistory}
                 valueLabel="Bubble Risk"
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
@@ -479,16 +601,16 @@ export default function DashboardPage() {
             )}
           </IndicatorCard>
 
-          {/* Smart vs Dumb Money Proxy - ALWAYS show */}
+          {/* Smart vs Dumb Money Proxy - historical composite */}
           <IndicatorCard
             title="Smart vs Dumb Money Proxy Index"
-            value={smartDumbProxy != null ? smartDumbProxy.toFixed(1) : 'Loading...'}
+            value={smartDumbCurrent != null ? smartDumbCurrent.toFixed(1) : 'Loading...'}
             subtitle="Higher = Dumb money more aggressive relative to Smart proxies"
-            isLoading={(effectLoading || hySpread.isLoading || liquidity.isLoading) && smartDumbProxy == null}
+            isLoading={(effectLoading || hySpread.isLoading || liquidity.isLoading) && !smartDumbHistory.length}
           >
-            {smartDumbProxy != null && Array.isArray(hySpread.data?.history) && hySpread.data.history.length > 0 && (
+            {smartDumbHistory.length > 0 && (
               <SimpleLineChart
-                data={hySpread.data.history.slice(-260).map((p) => ({ date: p.date, value: smartDumbProxy as number }))}
+                data={smartDumbHistory}
                 valueLabel="Smart vs Dumb Proxy"
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
