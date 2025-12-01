@@ -8,11 +8,10 @@ import { M2Chart } from '@/components/charts/M2Chart'
 import { YieldCurveChart } from '@/components/charts/YieldCurveChart'
 import { BuffettHistoryChart } from '@/components/charts/BuffettChart'
 import { SimpleLineChart } from '@/components/charts/SimpleLineChart'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { useEffect, useState } from 'react'
 
 export default function DashboardPage() {
-  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, isLoading } = useAllIndicators()
+  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity } = useAllIndicators()
 
   const [sahm, setSahm] = useState<any>(null)
   const [housing, setHousing] = useState<any>(null)
@@ -24,11 +23,14 @@ export default function DashboardPage() {
   const [defaults, setDefaults] = useState<any>(null)
   const [rrp, setRrp] = useState<any>(null)
 
+  // Track loading states for useEffect-based indicators
+  const [effectLoading, setEffectLoading] = useState(true)
+
   useEffect(() => {
     const controller = new AbortController()
     const signal = controller.signal
 
-    const fetchWithTimeout = (url: string, timeout = 10000) => {
+    const fetchWithTimeout = (url: string, timeout = 15000) => {
       return Promise.race([
         fetch(url, { signal }).then((r) => r.json()),
         new Promise((_, reject) =>
@@ -42,10 +44,10 @@ export default function DashboardPage() {
         const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes, marginRes, defaultsRes, rrpRes] = await Promise.allSettled([
           fetchWithTimeout('/api/indicators/sahm'),
           fetchWithTimeout('/api/indicators/housing'),
-          fetchWithTimeout('/api/indicators/pmi', 5000), // Give PMI more time as it's slower
+          fetchWithTimeout('/api/indicators/pmi', 20000),
           fetchWithTimeout('/api/indicators/sentiment'),
           fetchWithTimeout('/api/indicators/jobless'),
-          fetchWithTimeout('/api/indicators/vix', 3000),
+          fetchWithTimeout('/api/indicators/vix', 15000),
           fetchWithTimeout('/api/indicators/margin'),
           fetchWithTimeout('/api/indicators/defaults'),
           fetchWithTimeout('/api/indicators/rrp'),
@@ -63,23 +65,15 @@ export default function DashboardPage() {
         if (rrpRes.status === 'fulfilled') setRrp(rrpRes.value.data)
       } catch (error) {
         console.error('Error fetching indicators:', error)
+      } finally {
+        setEffectLoading(false)
       }
     })()
 
     return () => controller.abort()
   }, [])
 
-  if (isLoading) {
-    return (
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex justify-center items-center h-96">
-            <LoadingSpinner size="large" />
-          </div>
-        </div>
-      </main>
-    )
-  }
+  // NO BLOCKING isLoading gate - render immediately and let individual cards show their own loading states
 
   // Helper utilities for composite indices
   const percentile = (values: number[], value: number): number => {
@@ -190,26 +184,34 @@ export default function DashboardPage() {
         </header>
 
         <DashboardGrid>
-          {vix && (
-            <IndicatorCard title="VIX (Fear Gauge)" value={`${vix.current.toFixed(2)}`} subtitle="Higher = more fear">
+          {/* VIX - always show card, loading state if no data */}
+          <IndicatorCard 
+            title="VIX (Fear Gauge)" 
+            value={vix ? `${vix.current.toFixed(2)}` : 'Loading...'} 
+            subtitle="Higher = more fear"
+            isLoading={effectLoading && !vix}
+          >
+            {vix && (
               <SimpleLineChart data={vix.history} valueLabel="VIX" valueFormatter={(v) => `${v.toFixed(2)}`} refLines={[{ y: 12, color: '#22c55e' }, { y: 20, color: '#f59e0b' }, { y: 30, color: '#dc2626' }]} defaultWindowCount={156} />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {rrp && (
-            <IndicatorCard
-              title="Federal Reserve Reverse Repo (ON RRP)"
-              value={rrp.current != null ? `$${(rrp.current / 1000).toFixed(2)}T` : ''}
-              subtitle="Overnight RRPs outstanding (daily)"
-            >
+          {/* RRP - always show card */}
+          <IndicatorCard
+            title="Federal Reserve Reverse Repo (ON RRP)"
+            value={rrp?.current != null ? `$${(rrp.current / 1000).toFixed(2)}T` : 'Loading...'}
+            subtitle="Overnight RRPs outstanding (daily)"
+            isLoading={effectLoading && !rrp}
+          >
+            {rrp && (
               <SimpleLineChart
                 data={rrp.values}
                 valueLabel="RRP"
                 valueFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(2)}T` : `$${v.toFixed(0)}B`)}
                 defaultWindowCount={2520}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
           <IndicatorCard
             title="10Y/2Y Treasury Yield Spread"
@@ -242,20 +244,23 @@ export default function DashboardPage() {
             {buffett.data?.history && <BuffettHistoryChart history={buffett.data.history} />}
           </IndicatorCard>
 
-          {qqqDeviation.data && qqqDeviation.data.current && (
-            <IndicatorCard
-              title="QQQ 200-Day Deviation Index"
-              value={
-                qqqDeviation.data.current.deviationPct != null
-                  ? `${qqqDeviation.data.current.deviationPct.toFixed(1)}%`
-                  : 'N/A'
-              }
-              subtitle={
-                qqqDeviation.data.current.index != null
-                  ? `Percentile: ${qqqDeviation.data.current.index.toFixed(1)}`
-                  : 'Deviation vs 200-day moving average'
-              }
-            >
+          {/* QQQ Deviation - always show */}
+          <IndicatorCard
+            title="QQQ 200-Day Deviation Index"
+            value={
+              qqqDeviation.data?.current?.deviationPct != null
+                ? `${qqqDeviation.data.current.deviationPct.toFixed(1)}%`
+                : 'Loading...'
+            }
+            subtitle={
+              qqqDeviation.data?.current?.index != null
+                ? `Percentile: ${qqqDeviation.data.current.index.toFixed(1)}`
+                : 'Deviation vs 200-day moving average'
+            }
+            isLoading={qqqDeviation.isLoading}
+            error={qqqDeviation.error as Error | null}
+          >
+            {qqqDeviation.data?.history && (
               <SimpleLineChart
                 data={qqqDeviation.data.history
                   .filter((p) => p.index != null)
@@ -269,35 +274,45 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={520}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {sahm && (
-            <IndicatorCard
-              title="Sahm Rule Recession Indicator"
-              value={`${sahm.latest.toFixed(2)}%`}
-              subtitle={sahm.interpretation}
-              interpretation={sahm.triggered ? 'Triggered (≥ 0.5%)' : 'Not Triggered'}
-            >
+          {/* Sahm Rule - always show */}
+          <IndicatorCard
+            title="Sahm Rule Recession Indicator"
+            value={sahm ? `${sahm.latest.toFixed(2)}%` : 'Loading...'}
+            subtitle={sahm?.interpretation || 'Recession probability indicator'}
+            interpretation={sahm?.triggered ? 'Triggered (≥ 0.5%)' : 'Not Triggered'}
+            isLoading={effectLoading && !sahm}
+          >
+            {sahm && (
               <SimpleLineChart data={sahm.history} valueLabel="Sahm" valueFormatter={(v) => `${v.toFixed(2)}%`} refLines={[{ y: 0.5, color: '#dc2626' }]} defaultWindowCount={240} />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {housing && (
-            <IndicatorCard
-              title="Housing Starts & Building Permits"
-              value={housing.starts?.length ? `${housing.starts[housing.starts.length - 1].value.toFixed(0)}K` : ''}
-              subtitle="Monthly"
-            >
+          {/* Housing - always show */}
+          <IndicatorCard
+            title="Housing Starts & Building Permits"
+            value={housing?.starts?.length ? `${housing.starts[housing.starts.length - 1].value.toFixed(0)}K` : 'Loading...'}
+            subtitle="Monthly"
+            isLoading={effectLoading && !housing}
+          >
+            {housing && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SimpleLineChart data={housing.starts} valueLabel="Starts" valueFormatter={(v) => `${v.toFixed(0)}K`} defaultWindowCount={240} />
                 <SimpleLineChart data={housing.permits} valueLabel="Permits" valueFormatter={(v) => `${v.toFixed(0)}K`} defaultWindowCount={240} />
               </div>
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {pmi && (
-            <IndicatorCard title="ISM Manufacturing PMI" value={`${pmi.values[pmi.values.length - 1].value.toFixed(1)}`} subtitle="<50 = contraction">
+          {/* PMI - always show */}
+          <IndicatorCard 
+            title="ISM Manufacturing PMI" 
+            value={pmi?.values?.length ? `${pmi.values[pmi.values.length - 1].value.toFixed(1)}` : 'Loading...'} 
+            subtitle="<50 = contraction"
+            isLoading={effectLoading && !pmi}
+          >
+            {pmi && (
               <SimpleLineChart
                 data={pmi.values}
                 valueLabel="PMI"
@@ -305,65 +320,97 @@ export default function DashboardPage() {
                 refLines={[{ y: 50, color: '#22c55e' }, { y: 48, color: '#f59e0b' }]}
                 defaultWindowCount={240}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {sentiment && (
-            <IndicatorCard title="Consumer Sentiment (UMich)" value={`${sentiment.values[sentiment.values.length - 1].value.toFixed(1)}`} subtitle="Monthly">
+          {/* Consumer Sentiment - always show */}
+          <IndicatorCard 
+            title="Consumer Sentiment (UMich)" 
+            value={sentiment?.values?.length ? `${sentiment.values[sentiment.values.length - 1].value.toFixed(1)}` : 'Loading...'} 
+            subtitle="Monthly"
+            isLoading={effectLoading && !sentiment}
+          >
+            {sentiment && (
               <SimpleLineChart data={sentiment.values} valueLabel="Sentiment" valueFormatter={(v) => `${v.toFixed(1)}`} defaultWindowCount={240} />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {jobless && (
-            <IndicatorCard title="Initial Jobless Claims" value={`${jobless.values[jobless.values.length - 1].value.toFixed(0)}`} subtitle="Weekly">
+          {/* Jobless Claims - always show */}
+          <IndicatorCard 
+            title="Initial Jobless Claims" 
+            value={jobless?.values?.length ? `${jobless.values[jobless.values.length - 1].value.toFixed(0)}` : 'Loading...'} 
+            subtitle="Weekly"
+            isLoading={effectLoading && !jobless}
+          >
+            {jobless && (
               <SimpleLineChart data={jobless.values} valueLabel="Claims" valueFormatter={(v) => `${v.toFixed(0)}`} defaultWindowCount={260} />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {margin && (
-            <IndicatorCard title="Margin Debt (NYSE)" value={margin.current ? `${margin.current.toFixed(0)}B` : ''} subtitle="Monthly">
+          {/* Margin Debt - always show */}
+          <IndicatorCard 
+            title="Margin Debt (NYSE)" 
+            value={margin?.current ? `${margin.current.toFixed(0)}B` : 'Loading...'} 
+            subtitle="Monthly"
+            isLoading={effectLoading && !margin}
+          >
+            {margin && (
               <SimpleLineChart data={margin.values} valueLabel="Margin" valueFormatter={(v) => `${v.toFixed(0)}B`} defaultWindowCount={240} />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {defaults && (
-            <IndicatorCard title="Default Rates" value={''} subtitle="Consumer Delinquency & Credit Card Charge-offs">
+          {/* Default Rates - always show */}
+          <IndicatorCard 
+            title="Default Rates" 
+            value={defaults ? 'See chart' : 'Loading...'} 
+            subtitle="Consumer Delinquency & Credit Card Charge-offs"
+            isLoading={effectLoading && !defaults}
+          >
+            {defaults && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SimpleLineChart data={defaults.consumerDelinquency} valueLabel="Consumer Delinquency" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
                 <SimpleLineChart data={defaults.creditCardChargeOffs} valueLabel="CC Charge-offs" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
               </div>
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {hySpread.data && hySpread.data.current && (
-            <IndicatorCard
-              title="High-Yield Credit Spread"
-              value={`${hySpread.data.current.spread.toFixed(2)}%`}
-              subtitle="ICE BofA US High Yield OAS"
-            >
+          {/* HY Spread - always show */}
+          <IndicatorCard
+            title="High-Yield Credit Spread"
+            value={hySpread.data?.current ? `${hySpread.data.current.spread.toFixed(2)}%` : 'Loading...'}
+            subtitle="ICE BofA US High Yield OAS"
+            isLoading={hySpread.isLoading}
+            error={hySpread.error as Error | null}
+          >
+            {hySpread.data?.history && (
               <SimpleLineChart
                 data={hySpread.data.history.map((p) => ({ date: p.date, value: p.spread }))}
                 valueLabel="Spread"
                 valueFormatter={(v) => `${v.toFixed(2)}%`}
                 defaultWindowCount={520}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {putCall.data && putCall.data.current && (
-            <IndicatorCard
-              title="Put/Call Ratio Index"
-              value={
-                putCall.data.current.index != null
-                  ? putCall.data.current.index.toFixed(1)
-                  : putCall.data.current.smoothed?.toFixed(2) ?? 'N/A'
-              }
-              subtitle={
-                putCall.data.current.smoothed != null
-                  ? `Smoothed ratio: ${putCall.data.current.smoothed.toFixed(2)}`
-                  : 'Smoothed equity put/call ratio (higher index = more complacency)'
-              }
-            >
+          {/* Put/Call - always show */}
+          <IndicatorCard
+            title="Put/Call Ratio Index"
+            value={
+              putCall.data?.current?.index != null
+                ? putCall.data.current.index.toFixed(1)
+                : putCall.data?.current?.smoothed != null
+                ? putCall.data.current.smoothed.toFixed(2)
+                : 'Loading...'
+            }
+            subtitle={
+              putCall.data?.current?.smoothed != null
+                ? `Smoothed ratio: ${putCall.data.current.smoothed.toFixed(2)}`
+                : 'Smoothed equity put/call ratio (higher index = more complacency)'
+            }
+            isLoading={putCall.isLoading}
+            error={putCall.error as Error | null}
+          >
+            {putCall.data?.history && (
               <SimpleLineChart
                 data={putCall.data.history
                   .filter((p) => p.index != null)
@@ -377,24 +424,19 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={260}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {greedIndex != null && (
-            <IndicatorCard
-              title="Market Sentiment / Greed Index"
-              value={greedIndex.toFixed(1)}
-              subtitle="0 = Extreme Fear, 100 = Extreme Greed"
-            >
+          {/* Market Sentiment / Greed Index - ALWAYS show */}
+          <IndicatorCard
+            title="Market Sentiment / Greed Index"
+            value={greedIndex != null ? greedIndex.toFixed(1) : 'Loading...'}
+            subtitle="0 = Extreme Fear, 100 = Extreme Greed"
+            isLoading={effectLoading && greedIndex == null}
+          >
+            {greedIndex != null && Array.isArray(vix?.history) && vix.history.length > 0 && (
               <SimpleLineChart
-                data={[
-                  // Use last 260 trading days if available by combining VIX history dates
-                  ...(Array.isArray(vix?.history)
-                    ? vix.history
-                        .slice(-260)
-                        .map((p: any) => ({ date: p.date, value: greedIndex as number }))
-                    : []),
-                ]}
+                data={vix.history.slice(-260).map((p: any) => ({ date: p.date, value: greedIndex as number }))}
                 valueLabel="Greed Index"
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
@@ -404,23 +446,19 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={260}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {bubbleRiskIndex != null && (
-            <IndicatorCard
-              title="Bubble Risk Composite Index"
-              value={bubbleRiskIndex.toFixed(1)}
-              subtitle="Composite of valuation, technicals, liquidity, credit, and sentiment"
-            >
+          {/* Bubble Risk Composite - ALWAYS show */}
+          <IndicatorCard
+            title="Bubble Risk Composite Index"
+            value={bubbleRiskIndex != null ? bubbleRiskIndex.toFixed(1) : 'Loading...'}
+            subtitle="Composite of valuation, technicals, liquidity, credit, and sentiment"
+            isLoading={(effectLoading || qqqDeviation.isLoading || hySpread.isLoading || liquidity.isLoading || buffett.isLoading) && bubbleRiskIndex == null}
+          >
+            {bubbleRiskIndex != null && Array.isArray(qqqDeviation.data?.history) && qqqDeviation.data.history.length > 0 && (
               <SimpleLineChart
-                data={[
-                  ...(Array.isArray(qqqDeviation.data?.history)
-                    ? qqqDeviation.data.history
-                        .slice(-260)
-                        .map((p: any) => ({ date: p.date, value: bubbleRiskIndex as number }))
-                    : []),
-                ]}
+                data={qqqDeviation.data.history.slice(-260).map((p: any) => ({ date: p.date, value: bubbleRiskIndex as number }))}
                 valueLabel="Bubble Risk"
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
@@ -430,23 +468,19 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={260}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {smartDumbProxy != null && (
-            <IndicatorCard
-              title="Smart vs Dumb Money Proxy Index"
-              value={smartDumbProxy.toFixed(1)}
-              subtitle="Higher = Dumb money more aggressive relative to Smart proxies"
-            >
+          {/* Smart vs Dumb Money Proxy - ALWAYS show */}
+          <IndicatorCard
+            title="Smart vs Dumb Money Proxy Index"
+            value={smartDumbProxy != null ? smartDumbProxy.toFixed(1) : 'Loading...'}
+            subtitle="Higher = Dumb money more aggressive relative to Smart proxies"
+            isLoading={(effectLoading || hySpread.isLoading || liquidity.isLoading) && smartDumbProxy == null}
+          >
+            {smartDumbProxy != null && Array.isArray(hySpread.data?.history) && hySpread.data.history.length > 0 && (
               <SimpleLineChart
-                data={[
-                  ...(Array.isArray(hySpread.data?.history)
-                    ? hySpread.data.history
-                        .slice(-260)
-                        .map((p) => ({ date: p.date, value: smartDumbProxy as number }))
-                    : []),
-                ]}
+                data={hySpread.data.history.slice(-260).map((p) => ({ date: p.date, value: smartDumbProxy as number }))}
                 valueLabel="Smart vs Dumb Proxy"
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
@@ -456,28 +490,29 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={260}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {fedExpectations.data && fedExpectations.data.current && (
-            <IndicatorCard
-              title="CME-Style Fed Expectations Index"
-              value={
-                fedExpectations.data.current.index != null
-                  ? fedExpectations.data.current.index.toFixed(1)
-                  : fedExpectations.data.current.easing != null
-                  ? `${fedExpectations.data.current.easing.toFixed(2)}%`
-                  : 'N/A'
-              }
-              subtitle={
-                fedExpectations.data.current.targetRate != null &&
-                fedExpectations.data.current.impliedRate != null
-                  ? `Target: ${fedExpectations.data.current.targetRate.toFixed(
-                      2,
-                    )}%, Implied: ${fedExpectations.data.current.impliedRate.toFixed(2)}%`
-                  : 'Implied easing from Fed funds futures vs FOMC target'
-              }
-            >
+          {/* Fed Expectations - always show */}
+          <IndicatorCard
+            title="CME-Style Fed Expectations Index"
+            value={
+              fedExpectations.data?.current?.index != null
+                ? fedExpectations.data.current.index.toFixed(1)
+                : fedExpectations.data?.current?.easing != null
+                ? `${fedExpectations.data.current.easing.toFixed(2)}%`
+                : 'Loading...'
+            }
+            subtitle={
+              fedExpectations.data?.current?.targetRate != null &&
+              fedExpectations.data?.current?.impliedRate != null
+                ? `Target: ${fedExpectations.data.current.targetRate.toFixed(2)}%, Implied: ${fedExpectations.data.current.impliedRate.toFixed(2)}%`
+                : 'Implied easing from Fed funds futures vs FOMC target'
+            }
+            isLoading={fedExpectations.isLoading}
+            error={fedExpectations.error as Error | null}
+          >
+            {fedExpectations.data?.history && (
               <SimpleLineChart
                 data={fedExpectations.data.history
                   .filter((p) => p.index != null)
@@ -486,17 +521,22 @@ export default function DashboardPage() {
                 valueFormatter={(v) => v.toFixed(1)}
                 defaultWindowCount={520}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
-          {liquidity.data && liquidity.data.current && (
-            <IndicatorCard
-              title="Liquidity Index (Fed Net Liquidity)"
-              value={`${liquidity.data.current.index != null ? liquidity.data.current.index.toFixed(1) : 'N/A'}`}
-              subtitle={`YoY change: ${
-                liquidity.data.current.yoyChange != null ? `${liquidity.data.current.yoyChange.toFixed(1)}%` : 'N/A'
-              }`}
-            >
+          {/* Liquidity Index - always show */}
+          <IndicatorCard
+            title="Liquidity Index (Fed Net Liquidity)"
+            value={liquidity.data?.current?.index != null ? liquidity.data.current.index.toFixed(1) : 'Loading...'}
+            subtitle={
+              liquidity.data?.current?.yoyChange != null
+                ? `YoY change: ${liquidity.data.current.yoyChange.toFixed(1)}%`
+                : 'Fed Balance Sheet - TGA - RRP'
+            }
+            isLoading={liquidity.isLoading}
+            error={liquidity.error as Error | null}
+          >
+            {liquidity.data?.history && (
               <SimpleLineChart
                 data={liquidity.data.history
                   .filter((p) => p.index != null)
@@ -510,8 +550,8 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={260}
               />
-            </IndicatorCard>
-          )}
+            )}
+          </IndicatorCard>
 
           <IndicatorCard
             title="M2 Money Supply"

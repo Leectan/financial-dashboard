@@ -40,3 +40,5 @@ export function SimpleLineChart({ data, valueLabel = 'Value', valueFormatter = (
 
 
 
+
+
