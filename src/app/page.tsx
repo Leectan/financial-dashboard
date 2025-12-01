@@ -81,6 +81,102 @@ export default function DashboardPage() {
     )
   }
 
+  // Helper utilities for composite indices
+  const percentile = (values: number[], value: number): number => {
+    if (!values.length) return 50
+    const sorted = [...values].sort((a, b) => a - b)
+    let count = 0
+    for (const v of sorted) {
+      if (v <= value) count++
+      else break
+    }
+    const pct = (count - 1) / (sorted.length - 1 || 1)
+    return Math.min(100, Math.max(0, pct * 100))
+  }
+
+  const average = (nums: number[]): number | null => {
+    const filtered = nums.filter((n) => Number.isFinite(n))
+    if (!filtered.length) return null
+    const sum = filtered.reduce((acc, n) => acc + n, 0)
+    return sum / filtered.length
+  }
+
+  // Build Greed / Sentiment index (0-100 where higher = more greed/complacency)
+  let greedIndex: number | null = null
+  if (putCall.data && putCall.data.current && vix && sentiment) {
+    const putCallIndex = putCall.data.current.index ?? null
+
+    const vixValues = Array.isArray(vix.history) ? vix.history.map((p: any) => p.value).filter((v: any) => typeof v === 'number') : []
+    const vixCurrent = typeof vix.current === 'number' ? vix.current : null
+    const vixPct = vixCurrent != null && vixValues.length ? percentile(vixValues, vixCurrent) : null
+    const vixGreed = vixPct != null ? 100 - vixPct : null
+
+    const umichValues = Array.isArray(sentiment.values)
+      ? sentiment.values.map((p: any) => p.value).filter((v: any) => typeof v === 'number')
+      : []
+    const umichCurrent =
+      Array.isArray(sentiment.values) && sentiment.values.length
+        ? sentiment.values[sentiment.values.length - 1].value
+        : null
+    const umichPct = umichCurrent != null && umichValues.length ? percentile(umichValues, umichCurrent) : null
+    const umichGreed = umichPct != null ? umichPct : null
+
+    const components: number[] = []
+    if (typeof putCallIndex === 'number') components.push(putCallIndex)
+    if (typeof vixGreed === 'number') components.push(vixGreed)
+    if (typeof umichGreed === 'number') components.push(umichGreed)
+
+    const avg = average(components)
+    greedIndex = avg != null ? Math.max(0, Math.min(100, avg)) : null
+  }
+
+  // Liquidity risk (tightening = higher risk)
+  const liquidityIndex = liquidity.data?.current?.index ?? null
+  const liquidityRisk = liquidityIndex != null ? Math.max(0, Math.min(100, 100 - liquidityIndex)) : null
+
+  // Credit risk from HY spreads (tight spreads = higher risk)
+  let creditRisk: number | null = null
+  if (hySpread.data && hySpread.data.current) {
+    const spreads = hySpread.data.history.map((p) => p.spread).filter((v) => typeof v === 'number')
+    const currentSpread = hySpread.data.current.spread
+    const tightPct = spreads.length ? percentile(spreads, currentSpread) : null
+    creditRisk = tightPct != null ? 100 - tightPct : null
+  }
+
+  // Valuation risk from Buffett ratio
+  let buffettRisk: number | null = null
+  if (buffett.data) {
+    const ratios = (buffett.data.history || []).map((p: any) => p.ratio).filter((v: any) => typeof v === 'number')
+    const currentRatio = buffett.data.ratio
+    const pct = ratios.length ? percentile(ratios, currentRatio) : null
+    buffettRisk = pct != null ? pct : null
+  }
+
+  // Bubble risk composite (0-100)
+  let bubbleRiskIndex: number | null = null
+  {
+    const qqqRisk = qqqDeviation.data?.current?.index ?? null
+    const components: number[] = []
+    if (typeof buffettRisk === 'number') components.push(buffettRisk)
+    if (typeof qqqRisk === 'number') components.push(qqqRisk)
+    if (typeof liquidityRisk === 'number') components.push(liquidityRisk)
+    if (typeof creditRisk === 'number') components.push(creditRisk)
+    if (typeof greedIndex === 'number') components.push(greedIndex)
+    const avg = average(components)
+    bubbleRiskIndex = avg != null ? Math.max(0, Math.min(100, avg)) : null
+  }
+
+  // Smart vs Dumb Money proxy: higher = dumb more aggressive than "smart"
+  let smartDumbProxy: number | null = null
+  {
+    const components: number[] = []
+    if (typeof greedIndex === 'number') components.push(greedIndex)
+    if (typeof liquidityRisk === 'number') components.push(liquidityRisk)
+    if (typeof creditRisk === 'number') components.push(creditRisk)
+    const avg = average(components)
+    smartDumbProxy = avg != null ? Math.max(0, Math.min(100, avg)) : null
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -277,6 +373,85 @@ export default function DashboardPage() {
                 valueFormatter={(v) => v.toFixed(1)}
                 refLines={[
                   { y: 25, color: '#22c55e' },
+                  { y: 70, color: '#f59e0b' },
+                  { y: 85, color: '#dc2626' },
+                ]}
+                defaultWindowCount={260}
+              />
+            </IndicatorCard>
+          )}
+
+          {greedIndex != null && (
+            <IndicatorCard
+              title="Market Sentiment / Greed Index"
+              value={greedIndex.toFixed(1)}
+              subtitle="0 = Extreme Fear, 100 = Extreme Greed"
+            >
+              <SimpleLineChart
+                data={[
+                  // Use last 260 trading days if available by combining VIX history dates
+                  ...(Array.isArray(vix?.history)
+                    ? vix.history
+                        .slice(-260)
+                        .map((p: any) => ({ date: p.date, value: greedIndex as number }))
+                    : []),
+                ]}
+                valueLabel="Greed Index"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[
+                  { y: 30, color: '#22c55e' },
+                  { y: 70, color: '#f59e0b' },
+                  { y: 85, color: '#dc2626' },
+                ]}
+                defaultWindowCount={260}
+              />
+            </IndicatorCard>
+          )}
+
+          {bubbleRiskIndex != null && (
+            <IndicatorCard
+              title="Bubble Risk Composite Index"
+              value={bubbleRiskIndex.toFixed(1)}
+              subtitle="Composite of valuation, technicals, liquidity, credit, and sentiment"
+            >
+              <SimpleLineChart
+                data={[
+                  ...(Array.isArray(qqqDeviation.data?.history)
+                    ? qqqDeviation.data.history
+                        .slice(-260)
+                        .map((p: any) => ({ date: p.date, value: bubbleRiskIndex as number }))
+                    : []),
+                ]}
+                valueLabel="Bubble Risk"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[
+                  { y: 60, color: '#22c55e' },
+                  { y: 75, color: '#f59e0b' },
+                  { y: 90, color: '#dc2626' },
+                ]}
+                defaultWindowCount={260}
+              />
+            </IndicatorCard>
+          )}
+
+          {smartDumbProxy != null && (
+            <IndicatorCard
+              title="Smart vs Dumb Money Proxy Index"
+              value={smartDumbProxy.toFixed(1)}
+              subtitle="Higher = Dumb money more aggressive relative to Smart proxies"
+            >
+              <SimpleLineChart
+                data={[
+                  ...(Array.isArray(hySpread.data?.history)
+                    ? hySpread.data.history
+                        .slice(-260)
+                        .map((p) => ({ date: p.date, value: smartDumbProxy as number }))
+                    : []),
+                ]}
+                valueLabel="Smart vs Dumb Proxy"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[
+                  { y: 40, color: '#22c55e' },
                   { y: 70, color: '#f59e0b' },
                   { y: 85, color: '#dc2626' },
                 ]}
