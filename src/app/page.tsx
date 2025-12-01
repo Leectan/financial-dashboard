@@ -30,7 +30,9 @@ export default function DashboardPage() {
     const controller = new AbortController()
     const signal = controller.signal
 
-    const fetchWithTimeout = (url: string, timeout = 15000) => {
+    // Backend APIs on Vercel take 20-35 seconds due to cold starts + FRED API latency
+    // Set timeout to 60 seconds to ensure we don't give up before data arrives
+    const fetchWithTimeout = (url: string, timeout = 60000) => {
       return Promise.race([
         fetch(url, { signal }).then((r) => r.json()),
         new Promise((_, reject) =>
@@ -44,10 +46,10 @@ export default function DashboardPage() {
         const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes, marginRes, defaultsRes, rrpRes] = await Promise.allSettled([
           fetchWithTimeout('/api/indicators/sahm'),
           fetchWithTimeout('/api/indicators/housing'),
-          fetchWithTimeout('/api/indicators/pmi', 20000),
+          fetchWithTimeout('/api/indicators/pmi'),
           fetchWithTimeout('/api/indicators/sentiment'),
           fetchWithTimeout('/api/indicators/jobless'),
-          fetchWithTimeout('/api/indicators/vix', 15000),
+          fetchWithTimeout('/api/indicators/vix'),
           fetchWithTimeout('/api/indicators/margin'),
           fetchWithTimeout('/api/indicators/defaults'),
           fetchWithTimeout('/api/indicators/rrp'),
@@ -392,25 +394,26 @@ export default function DashboardPage() {
             )}
           </IndicatorCard>
 
-          {/* Put/Call - always show */}
+          {/* Put/Call - show note about data limitation */}
           <IndicatorCard
             title="Put/Call Ratio Index"
             value={
               putCall.data?.current?.index != null
                 ? putCall.data.current.index.toFixed(1)
-                : putCall.data?.current?.smoothed != null
-                ? putCall.data.current.smoothed.toFixed(2)
+                : putCall.data?.note 
+                ? 'N/A'
                 : 'Loading...'
             }
             subtitle={
-              putCall.data?.current?.smoothed != null
+              putCall.data?.note 
+                ? 'Free data unavailable - see VIX for sentiment'
+                : putCall.data?.current?.smoothed != null
                 ? `Smoothed ratio: ${putCall.data.current.smoothed.toFixed(2)}`
-                : 'Smoothed equity put/call ratio (higher index = more complacency)'
+                : 'Smoothed equity put/call ratio'
             }
             isLoading={putCall.isLoading}
-            error={putCall.error as Error | null}
           >
-            {putCall.data?.history && (
+            {putCall.data?.history && putCall.data.history.length > 0 ? (
               <SimpleLineChart
                 data={putCall.data.history
                   .filter((p) => p.index != null)
@@ -424,6 +427,11 @@ export default function DashboardPage() {
                 ]}
                 defaultWindowCount={260}
               />
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-400 p-4 text-center">
+                Put/Call ratio requires paid data subscription.<br/>
+                VIX and Consumer Sentiment are used as sentiment proxies.
+              </div>
             )}
           </IndicatorCard>
 

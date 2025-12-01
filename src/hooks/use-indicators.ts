@@ -138,6 +138,7 @@ export interface PutCallPoint {
 export interface PutCallData {
   history: PutCallPoint[]
   current: PutCallPoint | null
+  note?: string
 }
 
 async function fetchPutCall(): Promise<PutCallData> {
@@ -185,6 +186,11 @@ async function fetchLiquidity(): Promise<LiquidityData> {
   return json.data
 }
 
+// All queries use longer staleTime (30 min) and retry with exponential backoff
+// because Vercel cold starts + FRED API can take 20-35 seconds
+const STALE_TIME = 30 * 60 * 1000 // 30 minutes
+const RETRY_DELAY = (attemptIndex: number) => Math.min(2000 * 2 ** attemptIndex, 30000)
+
 export function useM2(): UseQueryResult<M2Data> {
   const startDate = new Date()
   startDate.setFullYear(startDate.getFullYear() - 10)
@@ -193,10 +199,11 @@ export function useM2(): UseQueryResult<M2Data> {
   return useQuery({
     queryKey: ['indicator', 'm2', start],
     queryFn: fetchM2,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -208,11 +215,11 @@ export function useYieldCurve(): UseQueryResult<YieldCurveData> {
   return useQuery({
     queryKey: ['indicator', 'yield-curve', start],
     queryFn: fetchYieldCurve,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
     retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -220,10 +227,11 @@ export function useBuffett(): UseQueryResult<BuffettData> {
   return useQuery({
     queryKey: ['indicator', 'buffett'],
     queryFn: fetchBuffett,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -231,10 +239,11 @@ export function useQQQDeviation(): UseQueryResult<QQQDeviationData> {
   return useQuery({
     queryKey: ['indicator', 'qqq-deviation'],
     queryFn: fetchQQQDeviation,
-    staleTime: 15 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -242,10 +251,11 @@ export function useHYSpread(): UseQueryResult<HYSpreadData> {
   return useQuery({
     queryKey: ['indicator', 'hy-spread'],
     queryFn: fetchHYSpread,
-    staleTime: 6 * 60 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -253,10 +263,11 @@ export function usePutCallIndex(): UseQueryResult<PutCallData> {
   return useQuery({
     queryKey: ['indicator', 'put-call'],
     queryFn: fetchPutCall,
-    staleTime: 15 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -264,10 +275,11 @@ export function useFedExpectations(): UseQueryResult<FedExpectationsData> {
   return useQuery({
     queryKey: ['indicator', 'fed-expectations'],
     queryFn: fetchFedExpectations,
-    staleTime: 60 * 60 * 1000,
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
@@ -275,10 +287,11 @@ export function useLiquidity(): UseQueryResult<LiquidityData> {
   return useQuery({
     queryKey: ['indicator', 'liquidity'],
     queryFn: fetchLiquidity,
-    staleTime: 60 * 60 * 1000, // 1 hour
+    staleTime: STALE_TIME,
     refetchInterval: false,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
   })
 }
 
