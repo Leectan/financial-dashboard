@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { computePutCallIndex } from '@/lib/calculations/put-call'
 import { getCached, setCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 
 export async function GET() {
   try {
@@ -35,5 +35,7 @@ export async function GET() {
     )
   }
 }
+
+
 
 

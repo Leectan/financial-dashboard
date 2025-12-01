@@ -102,33 +102,32 @@ export default function DashboardPage() {
   }
 
   // Build Greed / Sentiment index (0-100 where higher = more greed/complacency)
-  let greedIndex: number | null = null
-  if (putCall.data && putCall.data.current && vix && sentiment) {
-    const putCallIndex = putCall.data.current.index ?? null
+  const putCallIndex = putCall.data?.current?.index ?? null
 
-    const vixValues = Array.isArray(vix.history) ? vix.history.map((p: any) => p.value).filter((v: any) => typeof v === 'number') : []
-    const vixCurrent = typeof vix.current === 'number' ? vix.current : null
-    const vixPct = vixCurrent != null && vixValues.length ? percentile(vixValues, vixCurrent) : null
-    const vixGreed = vixPct != null ? 100 - vixPct : null
+  const vixValues = Array.isArray(vix?.history)
+    ? vix.history.map((p: any) => p.value).filter((v: any) => typeof v === 'number')
+    : []
+  const vixCurrent = typeof vix?.current === 'number' ? vix.current : null
+  const vixPct = vixCurrent != null && vixValues.length ? percentile(vixValues, vixCurrent) : null
+  const vixGreed = vixPct != null ? 100 - vixPct : null
 
-    const umichValues = Array.isArray(sentiment.values)
-      ? sentiment.values.map((p: any) => p.value).filter((v: any) => typeof v === 'number')
-      : []
-    const umichCurrent =
-      Array.isArray(sentiment.values) && sentiment.values.length
-        ? sentiment.values[sentiment.values.length - 1].value
-        : null
-    const umichPct = umichCurrent != null && umichValues.length ? percentile(umichValues, umichCurrent) : null
-    const umichGreed = umichPct != null ? umichPct : null
+  const umichValues = Array.isArray(sentiment?.values)
+    ? sentiment.values.map((p: any) => p.value).filter((v: any) => typeof v === 'number')
+    : []
+  const umichCurrent =
+    Array.isArray(sentiment?.values) && sentiment.values.length
+      ? sentiment.values[sentiment.values.length - 1].value
+      : null
+  const umichPct = umichCurrent != null && umichValues.length ? percentile(umichValues, umichCurrent) : null
+  const umichGreed = umichPct != null ? umichPct : null
 
-    const components: number[] = []
-    if (typeof putCallIndex === 'number') components.push(putCallIndex)
-    if (typeof vixGreed === 'number') components.push(vixGreed)
-    if (typeof umichGreed === 'number') components.push(umichGreed)
+  const greedComponents: number[] = []
+  if (typeof putCallIndex === 'number') greedComponents.push(putCallIndex)
+  if (typeof vixGreed === 'number') greedComponents.push(vixGreed)
+  if (typeof umichGreed === 'number') greedComponents.push(umichGreed)
 
-    const avg = average(components)
-    greedIndex = avg != null ? Math.max(0, Math.min(100, avg)) : null
-  }
+  const greedAvg = average(greedComponents)
+  const greedIndex: number | null = greedAvg != null ? Math.max(0, Math.min(100, greedAvg)) : null
 
   // Liquidity risk (tightening = higher risk)
   const liquidityIndex = liquidity.data?.current?.index ?? null
