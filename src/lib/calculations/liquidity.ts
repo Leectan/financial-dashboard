@@ -14,15 +14,32 @@ export interface LiquidityResult {
 
 type SeriesMap = Record<string, number>
 
-function toSeriesMap(series: FREDSeries): SeriesMap {
-  const map: SeriesMap = {}
+type SeriesPoint = { date: string; value: number }
+
+function toSeriesPoints(series: FREDSeries): SeriesPoint[] {
+  const pts: SeriesPoint[] = []
   for (const obs of series) {
     const v = parseFloat(obs.value)
-    if (!Number.isNaN(v)) {
-      map[obs.date] = v
+    if (!Number.isNaN(v) && typeof obs.date === 'string') {
+      pts.push({ date: obs.date, value: v })
     }
   }
-  return map
+  return pts.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function makeAsOfGetter(points: SeriesPoint[]): (date: string) => number | null {
+  let i = 0
+  const n = points.length
+  return (date: string) => {
+    while (i < n) {
+      const cur = points[i]
+      if (!cur || cur.date > date) break
+      i++
+    }
+    const idx = i - 1
+    const p = idx >= 0 ? points[idx] : undefined
+    return p ? p.value : null
+  }
 }
 
 function percentileIndex(values: number[], value: number): number {
@@ -45,17 +62,24 @@ export async function computeLiquidity(startISO: string = '2003-01-01'): Promise
     fredAPI.getSeriesFromStart('RRPONTSYD', startISO),
   ])
 
-  const walclMap = toSeriesMap(walcl)
-  const tgaMap = toSeriesMap(tgaSeries)
-  const rrpMap = toSeriesMap(rrp)
+  // Critical: these series are not perfectly aligned by date across the entire history.
+  // We compute net liquidity using "as-of" (last known) values for TGA and RRP at each WALCL date.
+  const walclPts = toSeriesPoints(walcl)
+  const tgaPts = toSeriesPoints(tgaSeries)
+  const rrpPts = toSeriesPoints(rrp)
 
-  const dates = Object.keys(walclMap).sort()
+  const getTgaAsOf = makeAsOfGetter(tgaPts)
+  const getRrpAsOf = makeAsOfGetter(rrpPts)
+
+  const dates = walclPts.map((p) => p.date)
   const points: LiquidityPoint[] = []
 
-  for (const date of dates) {
-    const wal = walclMap[date] ?? 0
-    const tga = tgaMap[date] ?? 0
-    const r = rrpMap[date] ?? 0
+  // WALCL dates are already our time grid; use sequential access rather than O(n^2) searches.
+  for (let k = 0; k < walclPts.length; k++) {
+    const date = walclPts[k]!.date
+    const wal = walclPts[k]!.value
+    const tga = getTgaAsOf(date) ?? 0
+    const r = getRrpAsOf(date) ?? 0
     const net = wal - tga - r
     points.push({ date, netLiquidity: net, yoyChange: null, index: null })
   }
