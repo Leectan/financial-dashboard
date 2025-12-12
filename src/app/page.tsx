@@ -321,6 +321,7 @@ export default function DashboardPage() {
                 ? `Minimum bid rate: ${srf.data.current.minimumBidRate.toFixed(2)}%`
                 : 'Accepted amount (sum of intraday ops)'
             }
+            interpretation='How much cash dealers/banks borrowed overnight from the Fed by pledging safe bonds. $0 is normal; spikes mean funding plumbing stress (not “bullish/bearish” by itself, but a stress signal).'
             isLoading={srf.isLoading && !srf.data}
             error={srf.error as any}
           >
@@ -346,6 +347,7 @@ export default function DashboardPage() {
                 : 'Loading...'
             }
             subtitle="Stock of Treasury bills held outright (SOMA, weekly as-of)"
+            interpretation="Bigger = the Fed holds more T-bills (more reserves/liquidity injected over time). Smaller = runoff/drain. Good for stability/risk assets, but also means looser financial conditions."
             isLoading={rmp.isLoading && !rmp.data}
             error={rmp.error as any}
           >
@@ -367,6 +369,7 @@ export default function DashboardPage() {
             title="VIX (Fear Gauge)" 
             value={vix ? `${vix.current.toFixed(2)}` : 'Loading...'} 
             subtitle="Higher = more fear"
+            interpretation="Market’s expected 30-day S&P volatility. High = panic/hedging demand; very low = complacency (can be a late-cycle warning)."
             isLoading={effectLoading && !vix}
           >
             {vix && (
@@ -379,6 +382,7 @@ export default function DashboardPage() {
             title="Federal Reserve Reverse Repo (ON RRP)"
             value={rrp?.current != null ? `$${(rrp.current / 1000).toFixed(2)}T` : 'Loading...'}
             subtitle="Overnight RRPs outstanding (daily)"
+            interpretation="How much cash money funds park at the Fed overnight. High = lots of idle cash; falling often means cash is moving back into markets/banks (context-dependent)."
             isLoading={effectLoading && !rrp}
           >
             {rrp && (
@@ -395,7 +399,7 @@ export default function DashboardPage() {
             title="10Y/2Y Treasury Yield Spread"
             value={yieldCurve.data ? `${yieldCurve.data.spread.toFixed(2)}%` : 'Loading...'}
             subtitle={yieldCurve.data?.interpretation}
-            interpretation={yieldCurve.data?.recessionProbability}
+            interpretation={`When this is negative (inverted), short rates are higher than long rates — historically a recession warning. When positive, funding conditions are usually healthier. (${yieldCurve.data?.recessionProbability ?? 'Recession risk varies'})`}
             alert={yieldCurve.data?.inverted}
             error={yieldCurve.error as Error | null}
             isLoading={yieldCurve.isLoading}
@@ -415,7 +419,7 @@ export default function DashboardPage() {
             title="Buffett Indicator"
             value={buffett.data ? `${buffett.data.ratio.toFixed(1)}%` : 'Loading...'}
             subtitle={buffett.data?.interpretation}
-            interpretation={`Market Cap / GDP Ratio`}
+            interpretation="Market value of US equities vs US GDP. Higher = “more expensive” market vs economy (lower long-run expected returns); can stay elevated for years."
             error={buffett.error as Error | null}
             isLoading={buffett.isLoading}
           >
@@ -435,6 +439,7 @@ export default function DashboardPage() {
                 ? `Percentile: ${qqqDeviation.data.current.index.toFixed(1)}`
                 : 'Deviation vs 200-day moving average'
             }
+            interpretation="How stretched Nasdaq-100 is vs its 200-day average. High percentile = unusually extended (fragile to pullbacks); low percentile = depressed/washed-out."
             isLoading={qqqDeviation.isLoading}
             error={qqqDeviation.error as Error | null}
           >
@@ -460,7 +465,11 @@ export default function DashboardPage() {
             title="Sahm Rule Recession Indicator"
             value={sahm ? `${sahm.latest.toFixed(2)}%` : 'Loading...'}
             subtitle={sahm?.interpretation || 'Recession probability indicator'}
-            interpretation={sahm?.triggered ? 'Triggered (≥ 0.5%)' : 'Not Triggered'}
+            interpretation={
+              sahm?.triggered
+                ? 'Triggered: unemployment has risen enough (≥0.5pp vs 12-month low) that recession is often already starting.'
+                : 'Not triggered: labor market hasn’t weakened enough by this specific historical rule.'
+            }
             isLoading={effectLoading && !sahm}
           >
             {sahm && (
@@ -473,6 +482,7 @@ export default function DashboardPage() {
             title="Housing Starts & Building Permits"
             value={housing?.starts?.length ? `${housing.starts[housing.starts.length - 1].value.toFixed(0)}K` : 'Loading...'}
             subtitle="Monthly"
+            interpretation="New home-building activity. Rising = growth/confidence; falling = rates/credit are biting and the economy is slowing (housing is a leading indicator)."
             isLoading={effectLoading && !housing}
           >
             {housing && (
@@ -488,6 +498,7 @@ export default function DashboardPage() {
             title="ISM Manufacturing PMI" 
             value={pmi?.values?.length ? `${pmi.values[pmi.values.length - 1].value.toFixed(1)}` : 'Loading...'} 
             subtitle="<50 = contraction"
+            interpretation="A monthly business survey. Above 50 = expansion; below 50 = contraction. Direction and persistence matter more than one print."
             isLoading={effectLoading && !pmi}
           >
             {pmi && (
@@ -506,6 +517,7 @@ export default function DashboardPage() {
             title="Consumer Sentiment (UMich)" 
             value={sentiment?.values?.length ? `${sentiment.values[sentiment.values.length - 1].value.toFixed(1)}` : 'Loading...'} 
             subtitle="Monthly"
+            interpretation="How confident households feel. Low = cautious spending; very low can be a contrarian “too pessimistic” signal. High = optimism (sometimes late-cycle)."
             isLoading={effectLoading && !sentiment}
           >
             {sentiment && (
@@ -518,6 +530,7 @@ export default function DashboardPage() {
             title="Initial Jobless Claims" 
             value={jobless?.values?.length ? `${jobless.values[jobless.values.length - 1].value.toFixed(0)}` : 'Loading...'} 
             subtitle="Weekly"
+            interpretation="Near-real-time layoffs signal. Rising trend = labor market weakening (recession risk up). Falling/low = labor market tight."
             isLoading={effectLoading && !jobless}
           >
             {jobless && (
@@ -530,6 +543,7 @@ export default function DashboardPage() {
             title="Margin Debt (NYSE)" 
             value={margin?.current ? `${margin.current.toFixed(0)}B` : 'Loading...'} 
             subtitle="Monthly"
+            interpretation="How much investors borrow to buy stocks. Rising = leverage/risk-on; sharp drops = deleveraging (can amplify market selloffs)."
             isLoading={effectLoading && !margin}
           >
             {margin && (
@@ -542,6 +556,7 @@ export default function DashboardPage() {
             title="Default Rates" 
             value={defaults ? 'See chart' : 'Loading...'} 
             subtitle="Consumer Delinquency & Credit Card Charge-offs"
+            interpretation="Household credit stress. Rising = consumers struggling + lenders tighten credit (usually a lagging-but-important recession signal)."
             isLoading={effectLoading && !defaults}
           >
             {defaults && (
@@ -557,6 +572,7 @@ export default function DashboardPage() {
             title="High-Yield Credit Spread"
             value={hySpread.data?.current ? `${hySpread.data.current.spread.toFixed(2)}%` : 'Loading...'}
             subtitle="ICE BofA US High Yield OAS"
+            interpretation="Extra yield investors demand to hold junk bonds vs Treasuries. Higher/widening = credit stress; very low/tight = risk-on/complacency."
             isLoading={hySpread.isLoading}
             error={hySpread.error as Error | null}
           >
@@ -587,6 +603,7 @@ export default function DashboardPage() {
                 ? `Smoothed ratio: ${putCall.data.current.smoothed.toFixed(2)}`
                 : 'Smoothed equity put/call ratio'
             }
+            interpretation="If available: higher put/call = more fear/hedging; lower = more call-buying/complacency. This card is a placeholder because reliable free put/call history isn’t available."
             isLoading={putCall.isLoading}
           >
             {putCall.data?.history && putCall.data.history.length > 0 ? (
@@ -616,6 +633,7 @@ export default function DashboardPage() {
             title="Market Sentiment / Greed Index"
             value={greedCurrent != null ? greedCurrent.toFixed(1) : 'Loading...'}
             subtitle="0 = Extreme Fear, 100 = Extreme Greed"
+            interpretation="Composite (VIX + consumer sentiment) scaled 0–100. High = complacency/greed; low = fear. Extremes matter more than day-to-day wiggles."
             isLoading={(effectLoading || !greedHistory.length)}
           >
             {greedHistory.length > 0 && (
@@ -638,6 +656,7 @@ export default function DashboardPage() {
             title="Bubble Risk Composite Index"
             value={bubbleCurrent != null ? bubbleCurrent.toFixed(1) : 'Loading...'}
             subtitle="Composite of valuation, technicals, liquidity, credit, and sentiment"
+            interpretation="0–100 risk regime score. High = market looks historically “bubble-like” (stretched prices + easy liquidity + tight credit spreads + greedy sentiment)."
             isLoading={(effectLoading || qqqDeviation.isLoading || hySpread.isLoading || liquidity.isLoading || buffett.isLoading) && !bubbleHistory.length}
           >
             {bubbleHistory.length > 0 && (
@@ -660,6 +679,7 @@ export default function DashboardPage() {
             title="Smart vs Dumb Money Proxy Index"
             value={smartDumbCurrent != null ? smartDumbCurrent.toFixed(1) : 'Loading...'}
             subtitle="Higher = Dumb money more aggressive relative to Smart proxies"
+            interpretation="A proxy: it rises when sentiment is hot while liquidity/credit conditions look late-cycle. High = crowd behavior risk; it is not a true COT/flow-based ‘smart money’ measure."
             isLoading={(effectLoading || hySpread.isLoading || liquidity.isLoading) && !smartDumbHistory.length}
           >
             {smartDumbHistory.length > 0 && (
@@ -693,6 +713,7 @@ export default function DashboardPage() {
                 ? `Target: ${fedExpectations.data.current.targetRate.toFixed(2)}%, Implied: ${fedExpectations.data.current.impliedRate.toFixed(2)}%`
                 : 'Implied easing from Fed funds futures vs FOMC target'
             }
+            interpretation="Higher = the market is pricing more future rate cuts (easing). That can be supportive for risk assets, but it often appears when growth is weakening."
             isLoading={fedExpectations.isLoading}
             error={fedExpectations.error as Error | null}
           >
@@ -717,6 +738,7 @@ export default function DashboardPage() {
                 ? `YoY change: ${liquidity.data.current.yoyChange.toFixed(1)}%`
                 : 'Fed Balance Sheet - TGA - RRP'
             }
+            interpretation="0–100 percentile of “net liquidity” (Fed assets minus Treasury cash and RRPs). Higher = more liquidity tailwind; lower = liquidity drain (headwind)."
             isLoading={liquidity.isLoading}
             error={liquidity.error as Error | null}
           >
@@ -741,7 +763,7 @@ export default function DashboardPage() {
             title="M2 Money Supply"
             value={m2.data ? `$${(m2.data.current / 1000).toFixed(2)}T` : 'Loading...'}
             subtitle={m2.data?.date}
-            interpretation="Weekly updates from Federal Reserve"
+            interpretation="Total money in the system (cash + deposits). Growth supports spending/inflation; sustained contraction is tightening (often a risk-off macro signal)."
             error={m2.error as Error | null}
             isLoading={m2.isLoading}
           >
