@@ -186,6 +186,47 @@ async function fetchLiquidity(): Promise<LiquidityData> {
   return json.data
 }
 
+export interface SRFDailyPoint {
+  date: string
+  accepted: number
+  submitted: number
+  minimumBidRate: number | null
+}
+
+export interface SRFData {
+  history: SRFDailyPoint[]
+  current: SRFDailyPoint | null
+  note: string
+  source: string
+}
+
+async function fetchSRF(): Promise<SRFData> {
+  const response = await fetch('/api/indicators/srf', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch SRF usage data')
+  const json: APIResponse<SRFData> = await response.json()
+  return json.data
+}
+
+export interface RMPPoint {
+  date: string
+  billsHeldOutright: number
+  wowChange: number | null
+}
+
+export interface RMPData {
+  history: RMPPoint[]
+  current: RMPPoint | null
+  note: string
+  source: string
+}
+
+async function fetchRMP(): Promise<RMPData> {
+  const response = await fetch('/api/indicators/rmp', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch RMP proxy data')
+  const json: APIResponse<RMPData> = await response.json()
+  return json.data
+}
+
 // All queries use longer staleTime (30 min) and retry with exponential backoff
 // because Vercel cold starts + FRED API can take 20-35 seconds
 const STALE_TIME = 30 * 60 * 1000 // 30 minutes
@@ -295,6 +336,30 @@ export function useLiquidity(): UseQueryResult<LiquidityData> {
   })
 }
 
+export function useSRF(): UseQueryResult<SRFData> {
+  return useQuery({
+    queryKey: ['indicator', 'srf'],
+    queryFn: fetchSRF,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useRMP(): UseQueryResult<RMPData> {
+  return useQuery({
+    queryKey: ['indicator', 'rmp'],
+    queryFn: fetchRMP,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
 export function useAllIndicators() {
   const m2 = useM2()
   const yieldCurve = useYieldCurve()
@@ -304,6 +369,8 @@ export function useAllIndicators() {
   const putCall = usePutCallIndex()
   const fedExpectations = useFedExpectations()
   const liquidity = useLiquidity()
+  const srf = useSRF()
+  const rmp = useRMP()
 
   return {
     m2,
@@ -314,6 +381,8 @@ export function useAllIndicators() {
     putCall,
     fedExpectations,
     liquidity,
+    srf,
+    rmp,
     isLoading:
       m2.isLoading ||
       yieldCurve.isLoading ||
@@ -322,7 +391,9 @@ export function useAllIndicators() {
       hySpread.isLoading ||
       putCall.isLoading ||
       fedExpectations.isLoading ||
-      liquidity.isLoading,
+      liquidity.isLoading ||
+      srf.isLoading ||
+      rmp.isLoading,
     isError:
       m2.isError ||
       yieldCurve.isError ||
@@ -331,7 +402,9 @@ export function useAllIndicators() {
       hySpread.isError ||
       putCall.isError ||
       fedExpectations.isError ||
-      liquidity.isError,
+      liquidity.isError ||
+      srf.isError ||
+      rmp.isError,
     errors: {
       m2: m2.error,
       yieldCurve: yieldCurve.error,
@@ -341,6 +414,8 @@ export function useAllIndicators() {
       fedExpectations: fedExpectations.error,
       qqqDeviation: qqqDeviation.error,
       liquidity: liquidity.error,
+      srf: srf.error,
+      rmp: rmp.error,
     },
   }
 }

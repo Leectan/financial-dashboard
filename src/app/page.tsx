@@ -11,7 +11,7 @@ import { SimpleLineChart } from '@/components/charts/SimpleLineChart'
 import { useEffect, useMemo, useState } from 'react'
 
 export default function DashboardPage() {
-  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity } = useAllIndicators()
+  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, srf, rmp } = useAllIndicators()
 
   const [sahm, setSahm] = useState<any>(null)
   const [housing, setHousing] = useState<any>(null)
@@ -308,6 +308,60 @@ export default function DashboardPage() {
         </header>
 
         <DashboardGrid>
+          {/* SRF Usage (NY Fed Repo Full Allotment) */}
+          <IndicatorCard
+            title="Standing Repo Facility (SRF) Usage"
+            value={
+              srf.data?.current
+                ? `$${(srf.data.current.accepted / 1e9).toFixed(2)}B`
+                : 'Loading...'
+            }
+            subtitle={
+              srf.data?.current?.minimumBidRate != null
+                ? `Minimum bid rate: ${srf.data.current.minimumBidRate.toFixed(2)}%`
+                : 'Accepted amount (sum of intraday ops)'
+            }
+            isLoading={srf.isLoading && !srf.data}
+            error={srf.error as any}
+          >
+            {srf.data?.history?.length ? (
+              <SimpleLineChart
+                data={srf.data.history.map((p) => ({ date: p.date, value: p.accepted / 1e9 }))}
+                valueLabel="Accepted ($B)"
+                valueFormatter={(v) => `$${v.toFixed(2)}B`}
+                defaultWindowCount={260}
+              />
+            ) : null}
+            {srf.data?.note ? (
+              <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">{srf.data.note}</div>
+            ) : null}
+          </IndicatorCard>
+
+          {/* RMP Proxy (SOMA Treasury Bills Held Outright) */}
+          <IndicatorCard
+            title="RMP Proxy: SOMA Treasury Bills Held Outright"
+            value={
+              rmp.data?.current
+                ? `$${(rmp.data.current.billsHeldOutright / 1e12).toFixed(2)}T`
+                : 'Loading...'
+            }
+            subtitle="Stock of Treasury bills held outright (SOMA, weekly as-of)"
+            isLoading={rmp.isLoading && !rmp.data}
+            error={rmp.error as any}
+          >
+            {rmp.data?.history?.length ? (
+              <SimpleLineChart
+                data={rmp.data.history.map((p) => ({ date: p.date, value: p.billsHeldOutright / 1e12 }))}
+                valueLabel="Bills ($T)"
+                valueFormatter={(v) => `$${v.toFixed(2)}T`}
+                defaultWindowCount={520}
+              />
+            ) : null}
+            {rmp.data?.note ? (
+              <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">{rmp.data.note}</div>
+            ) : null}
+          </IndicatorCard>
+
           {/* VIX - always show card, loading state if no data */}
           <IndicatorCard 
             title="VIX (Fear Gauge)" 

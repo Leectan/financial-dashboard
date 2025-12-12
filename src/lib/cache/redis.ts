@@ -24,6 +24,8 @@ export const CACHE_KEYS = {
   INDICATOR_HY_SPREAD: 'indicator:hy-spread',
   INDICATOR_PUTCALL: 'indicator:put-call',
   INDICATOR_FED_EXPECTATIONS: 'indicator:fed-expectations',
+  INDICATOR_SRF: 'indicator:srf',
+  INDICATOR_RMP: 'indicator:rmp',
   INDICATOR_SAHM: 'indicator:sahm',
   INDICATOR_HOUSING: 'indicator:housing',
   INDICATOR_PMI: 'indicator:pmi',
@@ -60,6 +62,8 @@ export const CACHE_TTL = {
   QQQ_DEVIATION: 900, // 15 minutes
   HY_SPREAD: 60 * 60 * 6, // 6 hours
   PUTCALL: 900, // 15 minutes
+  SRF: 300, // 5 minutes - operations update intraday
+  RMP: 60 * 60 * 24, // 24 hours - holdings update daily/weekly
   HEALTH: 300, // 5 minutes
   CRON_STATUS: 3600, // 1 hour
   MONTHLY: 60 * 60 * 24 * 30, // 30 days
