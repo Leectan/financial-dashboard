@@ -44,12 +44,15 @@ function parseMonthString(monthStr: string): string {
   const match = monthStr.match(/^(\w{3})-(\d{2})$/)
   if (!match) return ''
 
-  const [, month, year] = match
+  const month = match[1]
+  const year = match[2]
+  if (!month || !year) return ''
+
   const monthNum = months[month]
   if (!monthNum) return ''
 
   // Assume 20xx for years 00-99
-  const fullYear = parseInt(year) > 50 ? `19${year}` : `20${year}`
+  const fullYear = parseInt(year, 10) > 50 ? `19${year}` : `20${year}`
   return `${fullYear}-${monthNum}`
 }
 
@@ -88,17 +91,22 @@ async function fetchFINRAMarginData(): Promise<FINRAMarginResponse> {
   // Pattern: Month | Debit Balance | Free Credit Cash | Free Credit Margin
   const rowPattern = /<tr[^>]*>[\s\S]*?<td[^>]*>([A-Z][a-z]{2}-\d{2})<\/td>[\s\S]*?<td[^>]*>\$?([\d,]+)<\/td>[\s\S]*?<td[^>]*>\$?([\d,]+)<\/td>[\s\S]*?<td[^>]*>\$?([\d,]+)<\/td>[\s\S]*?<\/tr>/gi
 
-  let match
+  let match: RegExpExecArray | null
   while ((match = rowPattern.exec(html)) !== null) {
-    const [, monthStr, debit, creditCash, creditMargin] = match
-    const date = parseMonthString(monthStr)
+    const monthStr = match[1]
+    const debit = match[2]
+    const creditCash = match[3]
+    const creditMargin = match[4]
 
+    if (!monthStr || !debit) continue
+
+    const date = parseMonthString(monthStr)
     if (date) {
       history.push({
         date,
         debitBalance: parseDollarAmount(debit),
-        freeCreditCash: parseDollarAmount(creditCash),
-        freeCreditMargin: parseDollarAmount(creditMargin),
+        freeCreditCash: creditCash ? parseDollarAmount(creditCash) : null,
+        freeCreditMargin: creditMargin ? parseDollarAmount(creditMargin) : null,
       })
     }
   }
@@ -107,8 +115,13 @@ async function fetchFINRAMarginData(): Promise<FINRAMarginResponse> {
   if (history.length === 0) {
     // Look for patterns like "Nov-25" followed by dollar amounts
     const simplePattern = /([A-Z][a-z]{2}-\d{2})\s*\|?\s*\$?([\d,]+)/g
-    while ((match = simplePattern.exec(html)) !== null) {
-      const [, monthStr, amount] = match
+    let simpleMatch: RegExpExecArray | null
+    while ((simpleMatch = simplePattern.exec(html)) !== null) {
+      const monthStr = simpleMatch[1]
+      const amount = simpleMatch[2]
+
+      if (!monthStr || !amount) continue
+
       const date = parseMonthString(monthStr)
       if (date && !history.find(h => h.date === date)) {
         history.push({
@@ -128,8 +141,13 @@ async function fetchFINRAMarginData(): Promise<FINRAMarginResponse> {
     throw new Error('Could not parse FINRA margin data from page')
   }
 
+  const current = history[0]
+  if (!current) {
+    throw new Error('Could not parse FINRA margin data from page')
+  }
+
   return {
-    current: history[0],
+    current,
     history,
     lastUpdated: new Date().toISOString(),
     source: 'FINRA Margin Statistics',
