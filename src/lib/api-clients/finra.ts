@@ -74,7 +74,50 @@ async function fetchFINRAMarginData(): Promise<FINRAMarginResponse> {
       'User-Agent': 'Mozilla/5.0 (compatible; FinancialDashboard/1.0)',
       'Accept': 'text/html,application/xhtml+xml',
     },
-    next: { revalidate: 3600 } // Cache for 1 hour
+    // Default behavior: allow Next.js to cache/revalidate to reduce load.
+    // Note: callers that need *no caching* must use `fetchFINRAMarginDataNoStore`.
+    next: { revalidate: 3600 }, // Cache for 1 hour
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch FINRA data: ${response.status}`)
+  }
+
+  const html = await response.text()
+  return parseFINRAMarginHtml(html)
+}
+
+/**
+ * Get FINRA margin debt data with caching
+ */
+export async function getFINRAMarginDebt(fresh = false): Promise<FINRAMarginResponse> {
+  const cacheKey = `${CACHE_KEYS.INDICATOR_MARGIN}:finra`
+
+  if (!fresh) {
+    const cached = await getCached<FINRAMarginResponse>(cacheKey)
+    if (cached) return cached
+  }
+
+  // On explicit refresh requests, bypass Next.js fetch caching as well.
+  const data = fresh
+    ? await fetchFINRAMarginDataNoStore()
+    : await fetchFINRAMarginData()
+  await setCached(cacheKey, data, CACHE_TTL.MONTHLY)
+
+  return data
+}
+
+/**
+ * Fetch FINRA margin statistics without *any* Next.js request caching.
+ * Intended to be used only when user explicitly requests a "fresh" refresh.
+ */
+async function fetchFINRAMarginDataNoStore(): Promise<FINRAMarginResponse> {
+  const response = await fetch(FINRA_MARGIN_URL, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; FinancialDashboard/1.0)',
+      'Accept': 'text/html,application/xhtml+xml',
+    },
+    cache: 'no-store',
   })
 
   if (!response.ok) {
@@ -83,6 +126,12 @@ async function fetchFINRAMarginData(): Promise<FINRAMarginResponse> {
 
   const html = await response.text()
 
+  // Reuse the exact same parsing logic as the cached version by delegating to a small
+  // local helper that operates on HTML.
+  return parseFINRAMarginHtml(html)
+}
+
+function parseFINRAMarginHtml(html: string): FINRAMarginResponse {
   // Parse the table data from HTML
   // The table contains rows with: Month, Debit Balances, Free Credit (Cash), Free Credit (Margin)
   const history: FINRAMarginData[] = []
@@ -152,23 +201,6 @@ async function fetchFINRAMarginData(): Promise<FINRAMarginResponse> {
     lastUpdated: new Date().toISOString(),
     source: 'FINRA Margin Statistics',
   }
-}
-
-/**
- * Get FINRA margin debt data with caching
- */
-export async function getFINRAMarginDebt(fresh = false): Promise<FINRAMarginResponse> {
-  const cacheKey = `${CACHE_KEYS.INDICATOR_MARGIN}:finra`
-
-  if (!fresh) {
-    const cached = await getCached<FINRAMarginResponse>(cacheKey)
-    if (cached) return cached
-  }
-
-  const data = await fetchFINRAMarginData()
-  await setCached(cacheKey, data, CACHE_TTL.MONTHLY)
-
-  return data
 }
 
 /**

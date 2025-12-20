@@ -8,7 +8,9 @@ export const runtime = 'nodejs'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const fresh = searchParams.get('fresh') === 'true'
+    // Accept both `fresh=true` and `fresh=1` (Refresh button uses `fresh=1`)
+    const freshParam = (searchParams.get('fresh') || '').trim().toLowerCase()
+    const fresh = freshParam === 'true' || freshParam === '1'
 
     const key = CACHE_KEYS.INDICATOR_MARGIN
 
