@@ -538,16 +538,16 @@ export default function DashboardPage() {
             )}
           </IndicatorCard>
 
-          {/* Margin Debt - always show */}
-          <IndicatorCard 
-            title="Margin Debt (NYSE)" 
-            value={margin?.current ? `${margin.current.toFixed(0)}B` : 'Loading...'} 
-            subtitle="Monthly"
+          {/* Margin Debt - FINRA data */}
+          <IndicatorCard
+            title="Margin Debt (FINRA)"
+            value={margin?.current ? `$${(margin.current / 1000000).toFixed(2)}T` : 'Loading...'}
+            subtitle="Monthly (FINRA)"
             interpretation="How much investors borrow to buy stocks. Rising = leverage/risk-on; sharp drops = deleveraging (can amplify market selloffs)."
             isLoading={effectLoading && !margin}
           >
             {margin && (
-              <SimpleLineChart data={margin.values} valueLabel="Margin" valueFormatter={(v) => `${v.toFixed(0)}B`} defaultWindowCount={240} />
+              <SimpleLineChart data={margin.values} valueLabel="Margin Debt" valueFormatter={(v) => `$${(v / 1000000).toFixed(2)}T`} defaultWindowCount={120} />
             )}
           </IndicatorCard>
 

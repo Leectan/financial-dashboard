@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fredAPI } from '@/lib/api-clients/fred'
+import { finraAPI } from '@/lib/api-clients/finra'
 import { calculateBuffettIndicator } from '@/lib/calculations/buffett'
 import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculations/yield-curve'
 import { setCached, getCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
@@ -51,10 +52,20 @@ export async function GET(request: NextRequest) {
       results.buffett = 'success'
     })(),
     (async () => {
-      const series = await fredAPI.getSeriesFromStart('MDSP', '1970-01-01')
-      const last = series[series.length - 1]
-      if (!last) throw new Error('No margin debt observations')
-      await setCached(`${CACHE_KEYS.INDICATOR_MARGIN}:start:1970-01-01`, { current: parseFloat(last.value), date: last.date, values: series.map((o) => ({ date: o.date, value: parseFloat(o.value) })) }, CACHE_TTL.MONTHLY)
+      // Fetch FINRA margin debt data (actual margin statistics)
+      // Source: https://www.finra.org/rules-guidance/key-topics/margin-accounts/margin-statistics
+      const finraData = await finraAPI.getMarginDebt(true) // Force fresh fetch
+      const values = finraData.history.map(item => ({
+        date: `${item.date}-01`,
+        value: item.debitBalance,
+      })).reverse()
+      await setCached(CACHE_KEYS.INDICATOR_MARGIN, {
+        current: finraData.current.debitBalance,
+        date: `${finraData.current.date}-01`,
+        values,
+        source: 'FINRA',
+        unit: 'millions',
+      }, CACHE_TTL.MONTHLY)
       results.margin = 'success'
     })(),
     (async () => {
