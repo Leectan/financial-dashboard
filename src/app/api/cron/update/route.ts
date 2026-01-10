@@ -3,6 +3,7 @@ import { fredAPI } from '@/lib/api-clients/fred'
 import { finraAPI } from '@/lib/api-clients/finra'
 import { calculateBuffettIndicator } from '@/lib/calculations/buffett'
 import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculations/yield-curve'
+import { computeCorpCreditSpreads } from '@/lib/calculations/corp-credit-spreads'
 import { setCached, getCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
 export const runtime = 'nodejs'
@@ -86,10 +87,15 @@ export async function GET(request: NextRequest) {
       await setCached(`${CACHE_KEYS.INDICATOR_RRP}:start:2014-01-01`, { current: last?.value ?? null, date: last?.date ?? null, values }, CACHE_TTL.M2)
       results.rrp = 'success'
     })(),
+    (async () => {
+      const data = await computeCorpCreditSpreads('1997-01-01', true)
+      await setCached(`${CACHE_KEYS.INDICATOR_CORP_CREDIT}:start:1997-01-01`, data, CACHE_TTL.CORP_CREDIT)
+      results.corpCredit = 'success'
+    })(),
   ])
 
   updates.forEach((result, index) => {
-    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp']
+    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit']
     if (result.status === 'rejected') {
       // @ts-ignore
       results[names[index]] = 'failed'

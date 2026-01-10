@@ -28,6 +28,7 @@ export function RefreshButton() {
       fetch('/api/indicators/margin?fresh=1', { cache: 'no-store' }),
       fetch('/api/indicators/defaults?fresh=1', { cache: 'no-store' }),
       fetch('/api/indicators/rrp?fresh=1', { cache: 'no-store' }),
+      fetch('/api/indicators/corp-credit?fresh=1', { cache: 'no-store' }),
     ])
     await queryClient.invalidateQueries({ queryKey: ['indicator'] })
     // Reload the page data to ensure all components get fresh data

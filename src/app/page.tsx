@@ -8,10 +8,11 @@ import { M2Chart } from '@/components/charts/M2Chart'
 import { YieldCurveChart } from '@/components/charts/YieldCurveChart'
 import { BuffettHistoryChart } from '@/components/charts/BuffettChart'
 import { SimpleLineChart } from '@/components/charts/SimpleLineChart'
+import { CorpCreditSpreadsChart } from '@/components/charts/CorpCreditSpreadsChart'
 import { useEffect, useMemo, useState } from 'react'
 
 export default function DashboardPage() {
-  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, srf, rmp } = useAllIndicators()
+  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, srf, rmp, corpCredit } = useAllIndicators()
 
   const [sahm, setSahm] = useState<any>(null)
   const [housing, setHousing] = useState<any>(null)
@@ -582,6 +583,33 @@ export default function DashboardPage() {
                 valueLabel="Spread"
                 valueFormatter={(v) => `${v.toFixed(2)}%`}
                 defaultWindowCount={520}
+              />
+            )}
+          </IndicatorCard>
+
+          {/* Corporate Credit Spreads (OAS) - IG/BBB/HY multi-line */}
+          <IndicatorCard
+            title="Corporate Credit Spreads (OAS)"
+            value={
+              corpCredit.data
+                ? `HY ${corpCredit.data.hy.current?.value.toFixed(2) ?? '—'}% | BBB ${corpCredit.data.bbb.current?.value.toFixed(2) ?? '—'}% | IG ${corpCredit.data.ig.current?.value.toFixed(2) ?? '—'}%`
+                : 'Loading...'
+            }
+            subtitle={
+              corpCredit.data
+                ? `FRED ICE BofA OAS • as of ${corpCredit.data.meta.asOf}`
+                : 'Investment Grade, BBB, and High Yield OAS'
+            }
+            interpretation="Option-adjusted spreads for US corporate bonds. Widening spreads = credit stress / risk-off; tightening = risk-on / complacency. BBB (near-junk) often leads IG during stress."
+            isLoading={corpCredit.isLoading}
+            error={corpCredit.error as Error | null}
+          >
+            {corpCredit.data && (
+              <CorpCreditSpreadsChart
+                ig={corpCredit.data.ig.history}
+                bbb={corpCredit.data.bbb.history}
+                hy={corpCredit.data.hy.history}
+                defaultWindowCount={2600}
               />
             )}
           </IndicatorCard>

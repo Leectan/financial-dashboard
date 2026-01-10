@@ -36,6 +36,7 @@ export const CACHE_KEYS = {
   INDICATOR_DEFAULT_HOUSING: 'indicator:default-housing',
   INDICATOR_DEFAULT_CREDIT: 'indicator:default-credit',
   INDICATOR_RRP: 'indicator:rrp',
+  INDICATOR_CORP_CREDIT: 'indicator:corp-credit',
 
   // Raw data from APIs
   FRED_SERIES: (seriesId: string) => `fred:series:${seriesId}`,
@@ -64,6 +65,7 @@ export const CACHE_TTL = {
   PUTCALL: 900, // 15 minutes
   SRF: 300, // 5 minutes - operations update intraday
   RMP: 60 * 60 * 24, // 24 hours - holdings update daily/weekly
+  CORP_CREDIT: 60 * 60 * 6, // 6 hours - matches HY_SPREAD TTL
   HEALTH: 300, // 5 minutes
   CRON_STATUS: 3600, // 1 hour
   MONTHLY: 60 * 60 * 24 * 30, // 30 days

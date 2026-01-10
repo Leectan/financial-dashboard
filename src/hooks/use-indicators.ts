@@ -227,6 +227,33 @@ async function fetchRMP(): Promise<RMPData> {
   return json.data
 }
 
+export interface CorpCreditSpreadPoint {
+  date: string
+  value: number
+}
+
+export interface CorpCreditSpreadSeries {
+  current: CorpCreditSpreadPoint | null
+  history: CorpCreditSpreadPoint[]
+}
+
+export interface CorpCreditData {
+  ig: CorpCreditSpreadSeries
+  bbb: CorpCreditSpreadSeries
+  hy: CorpCreditSpreadSeries
+  meta: {
+    source: 'FRED'
+    asOf: string
+  }
+}
+
+async function fetchCorpCredit(start: string = '1997-01-01'): Promise<CorpCreditData> {
+  const response = await fetch(`/api/indicators/corp-credit?start=${start}`, { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch Corporate Credit Spreads data')
+  const json: APIResponse<CorpCreditData> = await response.json()
+  return json.data
+}
+
 // All queries use longer staleTime (30 min) and retry with exponential backoff
 // because Vercel cold starts + FRED API can take 20-35 seconds
 const STALE_TIME = 30 * 60 * 1000 // 30 minutes
@@ -360,6 +387,18 @@ export function useRMP(): UseQueryResult<RMPData> {
   })
 }
 
+export function useCorpCredit(start: string = '1997-01-01'): UseQueryResult<CorpCreditData> {
+  return useQuery({
+    queryKey: ['indicator', 'corp-credit', start],
+    queryFn: () => fetchCorpCredit(start),
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
 export function useAllIndicators() {
   const m2 = useM2()
   const yieldCurve = useYieldCurve()
@@ -371,6 +410,7 @@ export function useAllIndicators() {
   const liquidity = useLiquidity()
   const srf = useSRF()
   const rmp = useRMP()
+  const corpCredit = useCorpCredit()
 
   return {
     m2,
@@ -383,6 +423,7 @@ export function useAllIndicators() {
     liquidity,
     srf,
     rmp,
+    corpCredit,
     isLoading:
       m2.isLoading ||
       yieldCurve.isLoading ||
@@ -393,7 +434,8 @@ export function useAllIndicators() {
       fedExpectations.isLoading ||
       liquidity.isLoading ||
       srf.isLoading ||
-      rmp.isLoading,
+      rmp.isLoading ||
+      corpCredit.isLoading,
     isError:
       m2.isError ||
       yieldCurve.isError ||
@@ -404,7 +446,8 @@ export function useAllIndicators() {
       fedExpectations.isError ||
       liquidity.isError ||
       srf.isError ||
-      rmp.isError,
+      rmp.isError ||
+      corpCredit.isError,
     errors: {
       m2: m2.error,
       yieldCurve: yieldCurve.error,
@@ -416,6 +459,7 @@ export function useAllIndicators() {
       liquidity: liquidity.error,
       srf: srf.error,
       rmp: rmp.error,
+      corpCredit: corpCredit.error,
     },
   }
 }
