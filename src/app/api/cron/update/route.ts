@@ -4,6 +4,7 @@ import { finraAPI } from '@/lib/api-clients/finra'
 import { calculateBuffettIndicator } from '@/lib/calculations/buffett'
 import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculations/yield-curve'
 import { computeCorpCreditSpreads } from '@/lib/calculations/corp-credit-spreads'
+import { computeRegimeSignals } from '@/lib/research'
 import { setCached, getCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
 export const runtime = 'nodejs'
@@ -92,10 +93,15 @@ export async function GET(request: NextRequest) {
       await setCached(`${CACHE_KEYS.INDICATOR_CORP_CREDIT}:start:1997-01-01`, data, CACHE_TTL.CORP_CREDIT)
       results.corpCredit = 'success'
     })(),
+    (async () => {
+      const data = await computeRegimeSignals(true)
+      await setCached(CACHE_KEYS.RESEARCH_REGIME_SIGNALS, data, CACHE_TTL.REGIME_SIGNALS)
+      results.regimeSignals = 'success'
+    })(),
   ])
 
   updates.forEach((result, index) => {
-    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit']
+    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit', 'regimeSignals']
     if (result.status === 'rejected') {
       // @ts-ignore
       results[names[index]] = 'failed'

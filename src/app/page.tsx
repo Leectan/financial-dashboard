@@ -4,6 +4,7 @@ import { useAllIndicators } from '@/hooks/use-indicators'
 import { IndicatorCard } from '@/components/dashboard/IndicatorCard'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { RefreshButton } from '@/components/dashboard/RefreshButton'
+import { SignalsPanel } from '@/components/dashboard/SignalsPanel'
 import { M2Chart } from '@/components/charts/M2Chart'
 import { YieldCurveChart } from '@/components/charts/YieldCurveChart'
 import { BuffettHistoryChart } from '@/components/charts/BuffettChart'
@@ -308,7 +309,10 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <DashboardGrid>
+        {/* 2-column layout: charts left, signals right */}
+        <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-8">
+          {/* Main chart grid */}
+          <DashboardGrid>
           {/* SRF Usage (NY Fed Repo Full Allotment) */}
           <IndicatorCard
             title="Standing Repo Facility (SRF) Usage"
@@ -797,7 +801,15 @@ export default function DashboardPage() {
           >
             {m2.data && <M2Chart data={m2.data.historical} />}
           </IndicatorCard>
-        </DashboardGrid>
+          </DashboardGrid>
+
+          {/* Signals Panel - sticky sidebar on desktop, collapsible on mobile */}
+          <aside className="mt-8 lg:mt-0">
+            <div className="lg:sticky lg:top-8">
+              <SignalsPanel />
+            </div>
+          </aside>
+        </div>
 
         <footer className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
           <p>Data sources: Federal Reserve Economic Data (FRED), Yahoo Finance</p>

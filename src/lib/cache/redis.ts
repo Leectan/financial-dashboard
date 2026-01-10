@@ -38,6 +38,9 @@ export const CACHE_KEYS = {
   INDICATOR_RRP: 'indicator:rrp',
   INDICATOR_CORP_CREDIT: 'indicator:corp-credit',
 
+  // Research / Regime Signals
+  RESEARCH_REGIME_SIGNALS: 'research:regime-signals:v1',
+
   // Raw data from APIs
   FRED_SERIES: (seriesId: string) => `fred:series:${seriesId}`,
   FRED_SERIES_RANGE: (seriesId: string, start: string) => `fred:series:${seriesId}:start:${start}`,
@@ -66,6 +69,7 @@ export const CACHE_TTL = {
   SRF: 300, // 5 minutes - operations update intraday
   RMP: 60 * 60 * 24, // 24 hours - holdings update daily/weekly
   CORP_CREDIT: 60 * 60 * 6, // 6 hours - matches HY_SPREAD TTL
+  REGIME_SIGNALS: 60 * 60 * 6, // 6 hours - computed by cron
   HEALTH: 300, // 5 minutes
   CRON_STATUS: 3600, // 1 hour
   MONTHLY: 60 * 60 * 24 * 30, // 30 days
