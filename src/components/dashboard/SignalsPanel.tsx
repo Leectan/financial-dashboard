@@ -237,15 +237,60 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
     .sort((a, b) => Math.abs(b.spearman) - Math.abs(a.spearman))
     .slice(0, 5)
 
+  const strengthLabel = (rho: number): string => {
+    const a = Math.abs(rho)
+    if (a >= 0.8) return 'Very strong'
+    if (a >= 0.6) return 'Strong'
+    if (a >= 0.4) return 'Moderate'
+    if (a >= 0.2) return 'Weak'
+    return 'Very weak'
+  }
+
   const formatSeriesName = (id: string): string => {
     const names: Record<string, string> = {
       hy_oas: 'HY OAS',
       vix: 'VIX',
       yield_curve_spread: 'Yield Curve',
-      net_liquidity_pctile: 'Liquidity',
+      liquidity_index: 'Liquidity',
       sp500_drawdown: 'S&P DD',
     }
     return names[id] ?? id
+  }
+
+  const explainPair = (pair: CorrelationPair): string => {
+    const rho = pair.spearman
+    const dir = rho >= 0 ? 'move together' : 'move opposite'
+    const strength = strengthLabel(rho)
+    const key = `${pair.a}|${pair.b}`
+    const invKey = `${pair.b}|${pair.a}`
+
+    // “Liquidity” here is a percentile index (0–100) built from YoY net liquidity change:
+    // higher = easier liquidity, lower = tighter.
+    const specific: Record<string, string> = {
+      'hy_oas|vix':
+        'Rising volatility tends to coincide with widening high-yield credit spreads (fear + credit stress together).',
+      'yield_curve_spread|liquidity_index':
+        'Easier liquidity often coincides with a more positive yield curve; tightening liquidity often coincides with a flatter/inverted curve.',
+      'vix|yield_curve_spread':
+        'Higher volatility often coincides with a flatter or inverted curve (risk-off conditions).',
+      'vix|liquidity_index':
+        'Higher volatility often coincides with tighter liquidity; calmer markets coincide with easier liquidity.',
+      'hy_oas|liquidity_index':
+        'Widening high-yield spreads often coincides with tighter liquidity; tightening spreads coincide with easier liquidity.',
+    }
+
+    const base = specific[key] ?? specific[invKey]
+    if (!base) {
+      return `${strength} (${rho >= 0 ? '+' : ''}${rho.toFixed(2)}) Spearman: the two series tend to ${dir} over this window.`
+    }
+
+    // Adjust wording a bit based on sign to reduce confusion for non-finance users
+    const signAddendum =
+      rho >= 0
+        ? 'Because it’s positive, when one is high relative to recent history, the other also tends to be high.'
+        : 'Because it’s negative, when one is high relative to recent history, the other tends to be low.'
+
+    return `${strength} (${rho >= 0 ? '+' : ''}${rho.toFixed(2)}): ${base} ${signAddendum}`
   }
 
   return (
@@ -254,20 +299,28 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
         <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Correlations ({corr.window})</h3>
         <span className="text-xs text-gray-400">Spearman</span>
       </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+        Spearman ρ measures how strongly two series move together over the last {corr.window}. Green = together; red = opposite. |ρ| closer to 1 = stronger relationship. Correlation ≠ causation.
+      </p>
       <div className="space-y-2">
         {topPairs.map((pair, i) => (
-          <div key={i} className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400 truncate">
-              {formatSeriesName(pair.a)} / {formatSeriesName(pair.b)}
-            </span>
-            <span
-              className={`font-mono font-medium ${
-                pair.spearman > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-              }`}
-            >
-              {pair.spearman > 0 ? '+' : ''}
-              {pair.spearman.toFixed(2)}
-            </span>
+          <div key={i} className="rounded-md p-2 border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-400 truncate">
+                {formatSeriesName(pair.a)} / {formatSeriesName(pair.b)}
+              </span>
+              <span
+                className={`font-mono font-medium ${
+                  pair.spearman > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                }`}
+              >
+                {pair.spearman > 0 ? '+' : ''}
+                {pair.spearman.toFixed(2)}
+              </span>
+            </div>
+            <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+              {explainPair(pair)}
+            </div>
           </div>
         ))}
       </div>
