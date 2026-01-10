@@ -314,7 +314,8 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     },
     liquidity_stress: {
       // Use the pre-computed liquidity index from existing calculator
-      value: liquidityData?.current?.netLiquidity ?? null,
+      // Display value is YoY % change so humans can interpret negative values (e.g. -0.65%)
+      value: liquidityData?.current?.yoyChange ?? null,
       percentile: liquidityData?.current?.index ?? null,
       asOf: liquidityData?.current?.date ?? 'N/A',
       datasetId: 'net_liquidity',

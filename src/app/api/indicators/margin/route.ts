@@ -47,3 +47,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch margin debt' }, { status: 500 })
   }
 }
+

@@ -80,6 +80,24 @@ function RegimeScoreCard({ label, score, asOf }: { label: RegimeLabel; score: nu
 function TopDriversList({ drivers, components }: { drivers: string[]; components: RegimeSignalsResponse['regime']['components'] }) {
   if (drivers.length === 0) return null
 
+  const formatValue = (comp: RegimeSignalsResponse['regime']['components'][number]): string => {
+    if (comp.value == null) return 'N/A'
+    switch (comp.id) {
+      case 'credit_stress':
+        return `${comp.value.toFixed(2)}%`
+      case 'liquidity_stress':
+        return `${comp.value.toFixed(2)}% YoY`
+      case 'volatility':
+        return `${comp.value.toFixed(1)}`
+      case 'funding_stress':
+        return `$${(comp.value / 1e9).toFixed(2)}B`
+      case 'curve_inversion':
+        return `${comp.value.toFixed(2)}%`
+      default:
+        return comp.value.toFixed(2)
+    }
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
       <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Top Drivers</h3>
@@ -96,13 +114,88 @@ function TopDriversList({ drivers, components }: { drivers: string[]; components
                   <span className="text-xs text-gray-500">P{comp.percentile.toFixed(0)}</span>
                 )}
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {comp.value !== null ? comp.value.toFixed(2) : 'N/A'}
+                  {formatValue(comp)}
                 </span>
               </div>
             </li>
           )
         })}
       </ul>
+    </div>
+  )
+}
+
+function ComponentMeaning({ components }: { components: RegimeSignalsResponse['regime']['components'] }) {
+  const byId = Object.fromEntries(components.map((c) => [c.id, c])) as Record<string, RegimeSignalsResponse['regime']['components'][number]>
+
+  const credit = byId['credit_stress']
+  const liq = byId['liquidity_stress']
+  const vol = byId['volatility']
+  const fund = byId['funding_stress']
+  const curve = byId['curve_inversion']
+
+  const creditText = (() => {
+    if (!credit || credit.value == null) return 'HY OAS: unavailable.'
+    const v = credit.value
+    if (v < 3) return `HY OAS ${v.toFixed(2)}%: very tight (risk-on / benign credit).`
+    if (v < 5) return `HY OAS ${v.toFixed(2)}%: normal-to-moderate risk (watch changes).`
+    if (v < 7) return `HY OAS ${v.toFixed(2)}%: elevated stress (credit tightening).`
+    return `HY OAS ${v.toFixed(2)}%: high stress (often seen in risk-off episodes).`
+  })()
+
+  const liqText = (() => {
+    if (!liq) return 'Liquidity: unavailable.'
+    const yoy = liq.value
+    const pct = liq.percentile
+    const parts: string[] = []
+    if (yoy != null) {
+      parts.push(`Liquidity YoY ${yoy.toFixed(2)}%: ${yoy < 0 ? 'shrinking (tighter conditions)' : 'growing (easier conditions)'}.`)
+    }
+    if (pct != null) {
+      // Note: lower percentile = tighter liquidity; higher = easier liquidity
+      parts.push(`Liquidity percentile P${pct.toFixed(0)} (0–100): ${pct < 20 ? 'very tight' : pct < 40 ? 'somewhat tight' : pct < 60 ? 'neutral' : 'easy'}.`)
+    }
+    return parts.length ? parts.join(' ') : 'Liquidity: unavailable.'
+  })()
+
+  const volText = (() => {
+    if (!vol || vol.value == null) return 'VIX: unavailable.'
+    const v = vol.value
+    if (v < 15) return `VIX ${v.toFixed(1)}: low volatility (complacency / calm).`
+    if (v < 25) return `VIX ${v.toFixed(1)}: normal range.`
+    if (v < 35) return `VIX ${v.toFixed(1)}: elevated fear / stress.`
+    return `VIX ${v.toFixed(1)}: extreme stress regime.`
+  })()
+
+  const curveText = (() => {
+    if (!curve || curve.value == null) return 'Yield curve: unavailable.'
+    const s = curve.value
+    if (s < 0) return `10Y–2Y ${s.toFixed(2)}%: inverted (historically associated with higher recession odds, with long/variable leads).`
+    if (s < 0.5) return `10Y–2Y ${s.toFixed(2)}%: flat/late-cycle (watch for further flattening).`
+    return `10Y–2Y ${s.toFixed(2)}%: normal positive slope.`
+  })()
+
+  const fundText = (() => {
+    if (!fund || fund.value == null) return 'SRF usage: unavailable.'
+    const acceptedB = fund.value / 1e9
+    if (acceptedB <= 0) return 'SRF accepted $0B: normal (no take-up).'
+    if (acceptedB < 5) return `SRF accepted $${acceptedB.toFixed(2)}B: mild take-up (monitor).`
+    return `SRF accepted $${acceptedB.toFixed(2)}B: meaningful take-up (funding plumbing stress signal).`
+  })()
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">How to read these</h3>
+      <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+        <p><span className="font-medium">Credit (HY OAS):</span> {creditText}</p>
+        <p><span className="font-medium">Liquidity:</span> {liqText}</p>
+        <p><span className="font-medium">Volatility (VIX):</span> {volText}</p>
+        <p><span className="font-medium">Yield Curve:</span> {curveText}</p>
+        <p><span className="font-medium">Funding (SRF):</span> {fundText}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          “Good/bad” is context-dependent: tight credit + easy liquidity is usually supportive for risk assets; widening spreads + tightening liquidity is usually a warning.
+        </p>
+      </div>
     </div>
   )
 }
@@ -266,6 +359,8 @@ export function SignalsPanel() {
       <TopDriversList drivers={regime.topDrivers} components={regime.components} />
 
       <ActiveAlerts alerts={regime.activeAlerts} />
+
+      <ComponentMeaning components={regime.components} />
 
       <CorrelationsTable correlations={correlations} />
 
