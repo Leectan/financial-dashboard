@@ -70,6 +70,8 @@ interface ComponentInput {
   value: number | null
   percentile: number | null
   asOf: string
+  /** The dataset registry ID for this component (for staleness checks) */
+  datasetId: string
 }
 
 /**
@@ -88,6 +90,9 @@ export function computeRegimeScore(
   let weightedSum = 0
   const warnings: string[] = []
 
+  // Track component ID -> dataset ID mapping for staleness checks
+  const componentToDataset = new Map<string, string>()
+
   for (const def of REGIME_COMPONENTS) {
     const input = components[def.id]
 
@@ -104,6 +109,9 @@ export function computeRegimeScore(
       warnings.push(`${def.name}: data unavailable`)
       continue
     }
+
+    // Store the mapping from component ID to dataset ID
+    componentToDataset.set(def.id, input.datasetId)
 
     // Convert percentile to stress score (0-100)
     // For "higherIsBad" indicators, high percentile = high stress
@@ -142,14 +150,16 @@ export function computeRegimeScore(
   const firingTriggers = getCurrentlyFiringTriggers(currentValues, DEFAULT_THRESHOLDS)
   const activeAlerts = firingTriggers.map((t) => t.name)
 
-  // Add staleness warnings
+  // Add staleness warnings using correct dataset IDs for registry lookup
   const today = computeDate
   for (const comp of regimeComponents) {
     if (comp.asOf && comp.asOf !== 'N/A') {
       const daysDiff = Math.floor(
         (new Date(today).getTime() - new Date(comp.asOf).getTime()) / (1000 * 60 * 60 * 24)
       )
-      const meta = DATASET_REGISTRY[comp.id]
+      // Use the dataset ID (e.g., 'hy_oas') not the component ID (e.g., 'credit_stress')
+      const datasetId = componentToDataset.get(comp.id)
+      const meta = datasetId ? DATASET_REGISTRY[datasetId] : null
       const expectedLag = meta?.knownLagDays ?? 3
 
       if (daysDiff > expectedLag + 3) {

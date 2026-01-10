@@ -3,14 +3,16 @@
  *
  * Orchestrates data fetching, alignment, and computation of all regime signals.
  * This module is called by the API route and cron warmer.
+ *
+ * IMPORTANT: Reuses existing production-grade calculators instead of re-implementing.
  */
 
 import { fredAPI } from '@/lib/api-clients/fred'
+import { computeLiquidity, type LiquidityResult } from '@/lib/calculations/liquidity'
+import { computeSRFUsage, type SRFData } from '@/lib/calculations/srf'
+import { computeRMPProxy, type RMPData } from '@/lib/calculations/rmp'
 import type {
   RegimeSignalsResponse,
-  RegimeScore,
-  RollingCorrelation,
-  TriggerStat,
   TimePoint,
 } from './types'
 import {
@@ -20,14 +22,14 @@ import {
   nDayChange,
   formatDate,
   subtractDays,
+  valueAsOf,
 } from './alignment'
 import { computeRollingCorrelations } from './correlations'
 import { computeAllTriggerStats, DEFAULT_THRESHOLDS } from './triggers'
 import { computeRegimeScore } from './regime-score'
-import { DATASET_REGISTRY } from './dataset-registry'
 
 // ============================================================================
-// Data Fetching
+// Data Fetching - Uses existing calculators where available
 // ============================================================================
 
 interface FetchedSeries {
@@ -37,15 +39,14 @@ interface FetchedSeries {
 }
 
 /**
- * Fetch all required FRED series for regime signals
+ * Fetch FRED series for regime signals
+ * Only fetches series not covered by existing calculators
  */
 async function fetchFREDSeries(startDate: string): Promise<FetchedSeries[]> {
   const seriesConfigs = [
     { id: 'hy_oas', fredId: 'BAMLH0A0HYM2', lagDays: 1 },
-    { id: 'ig_oas', fredId: 'BAMLC0A0CM', lagDays: 1 },
     { id: 'vix', fredId: 'VIXCLS', lagDays: 1 },
     { id: 'yield_curve_spread', fredId: 'T10Y2Y', lagDays: 1 },
-    { id: 'rrp', fredId: 'RRPONTSYD', lagDays: 1 },
     { id: 'recession', fredId: 'USREC', lagDays: 30 },
   ]
 
@@ -75,58 +76,60 @@ async function fetchFREDSeries(startDate: string): Promise<FetchedSeries[]> {
 }
 
 /**
- * Fetch liquidity components and compute net liquidity
+ * Convert LiquidityResult to TimePoint array for alignment
  */
-async function fetchLiquiditySeries(startDate: string): Promise<FetchedSeries> {
-  try {
-    // Fetch components
-    const [walcl, tga, rrp] = await Promise.all([
-      fredAPI.getSeriesFromStart('WALCL', startDate), // Fed balance sheet
-      fredAPI.getSeriesFromStart('WTREGEN', startDate), // TGA
-      fredAPI.getSeriesFromStart('RRPONTSYD', startDate), // ON RRP
-    ])
+function liquidityToTimePoints(result: LiquidityResult): {
+  netLiquidity: TimePoint[]
+  liquidityIndex: TimePoint[]
+} {
+  const netLiquidity: TimePoint[] = []
+  const liquidityIndex: TimePoint[] = []
 
-    // Convert to maps for alignment
-    const walclMap = new Map(walcl.map((o) => [o.date, parseFloat(o.value)]))
-    const tgaMap = new Map(tga.map((o) => [o.date, parseFloat(o.value)]))
-    const rrpMap = new Map(rrp.map((o) => [o.date, parseFloat(o.value)]))
-
-    // Get all unique dates
-    const allDates = new Set([...walclMap.keys(), ...tgaMap.keys(), ...rrpMap.keys()])
-    const sortedDates = Array.from(allDates).sort()
-
-    // Compute net liquidity with forward-fill
-    let lastWalcl = 0
-    let lastTga = 0
-    let lastRrp = 0
-
-    const points: TimePoint[] = []
-
-    for (const date of sortedDates) {
-      if (walclMap.has(date)) lastWalcl = walclMap.get(date)!
-      if (tgaMap.has(date)) lastTga = tgaMap.get(date)!
-      if (rrpMap.has(date)) lastRrp = rrpMap.get(date)!
-
-      // Net liquidity = WALCL - TGA - RRP (in billions)
-      const netLiquidity = lastWalcl - lastTga / 1000 - lastRrp / 1000
-
-      if (lastWalcl > 0) {
-        points.push({ date, value: netLiquidity })
-      }
+  for (const pt of result.history) {
+    netLiquidity.push({ date: pt.date, value: pt.netLiquidity })
+    if (pt.index !== null) {
+      liquidityIndex.push({ date: pt.date, value: pt.index })
     }
-
-    return { id: 'net_liquidity', points, lagDays: 7 }
-  } catch (error) {
-    console.warn('Failed to compute net liquidity:', error)
-    return { id: 'net_liquidity', points: [], lagDays: 7 }
   }
+
+  return { netLiquidity, liquidityIndex }
+}
+
+/**
+ * Convert SRFData to TimePoint array for alignment
+ */
+function srfToTimePoints(data: SRFData): TimePoint[] {
+  return data.history.map((pt) => ({
+    date: pt.date,
+    value: pt.accepted,
+  }))
+}
+
+/**
+ * Convert RMPData to TimePoint arrays for alignment
+ */
+function rmpToTimePoints(data: RMPData): {
+  billsHeld: TimePoint[]
+  wowChange: TimePoint[]
+} {
+  const billsHeld: TimePoint[] = []
+  const wowChange: TimePoint[] = []
+
+  for (const pt of data.history) {
+    billsHeld.push({ date: pt.date, value: pt.billsHeldOutright })
+    if (pt.wowChange !== null) {
+      wowChange.push({ date: pt.date, value: pt.wowChange })
+    }
+  }
+
+  return { billsHeld, wowChange }
 }
 
 // ============================================================================
 // Main Computation
 // ============================================================================
 
-const SIGNAL_VERSION = 'v1.0.0'
+const SIGNAL_VERSION = 'v1.1.0'
 const MIN_HISTORY_DAYS = 252 * 2 // 2 years minimum for percentiles
 
 /**
@@ -141,13 +144,44 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
   // Use 10 years of history for percentile calculations
   const startDate = subtractDays(today, 365 * 10)
 
-  // Fetch all data
-  const [fredSeries, liquiditySeries] = await Promise.all([
+  // Fetch all data using existing production calculators where available
+  const [fredSeries, liquidityData, srfData, rmpData] = await Promise.all([
     fetchFREDSeries(startDate),
-    fetchLiquiditySeries(startDate),
+    computeLiquidity(startDate).catch((e) => {
+      console.warn('Failed to compute liquidity:', e)
+      return null
+    }),
+    computeSRFUsage().catch((e) => {
+      console.warn('Failed to fetch SRF data:', e)
+      return null
+    }),
+    computeRMPProxy().catch((e) => {
+      console.warn('Failed to fetch RMP data:', e)
+      return null
+    }),
   ])
 
-  const allSeries = [...fredSeries, liquiditySeries]
+  // Convert calculator results to TimePoint arrays
+  const liquidityPoints = liquidityData ? liquidityToTimePoints(liquidityData) : null
+  const srfPoints = srfData ? srfToTimePoints(srfData) : []
+  const rmpPoints = rmpData ? rmpToTimePoints(rmpData) : null
+
+  // Combine all series
+  const allSeries: FetchedSeries[] = [...fredSeries]
+
+  if (liquidityPoints) {
+    allSeries.push({ id: 'net_liquidity', points: liquidityPoints.netLiquidity, lagDays: 7 })
+    allSeries.push({ id: 'liquidity_index', points: liquidityPoints.liquidityIndex, lagDays: 7 })
+  }
+
+  if (srfPoints.length > 0) {
+    allSeries.push({ id: 'srf_accepted', points: srfPoints, lagDays: 0 })
+  }
+
+  if (rmpPoints) {
+    allSeries.push({ id: 'rmp_bills', points: rmpPoints.billsHeld, lagDays: 3 })
+    allSeries.push({ id: 'rmp_wow_change', points: rmpPoints.wowChange, lagDays: 3 })
+  }
 
   // Find common date range
   const seriesWithData = allSeries.filter((s) => s.points.length > 0)
@@ -155,14 +189,14 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     throw new Error('No data available for regime signal computation')
   }
 
-  const minDate = seriesWithData
-    .map((s) => s.points[0]?.date ?? '9999-12-31')
-    .sort()[seriesWithData.length - 1]!
+  // Use HY OAS series as primary grid (most reliable daily coverage)
+  const hyOasSeries = allSeries.find((s) => s.id === 'hy_oas')
+  if (!hyOasSeries || hyOasSeries.points.length === 0) {
+    throw new Error('HY OAS series required for regime computation')
+  }
 
-  const maxDate = seriesWithData
-    .map((s) => s.points[s.points.length - 1]?.date ?? '1900-01-01')
-    .sort()
-    .reverse()[0]!
+  const minDate = hyOasSeries.points[0]?.date ?? startDate
+  const maxDate = hyOasSeries.points[hyOasSeries.points.length - 1]?.date ?? today
 
   // Generate business day grid
   const grid = generateBusinessDayGrid(minDate, maxDate)
@@ -188,9 +222,9 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     alignedSeries['hy_oas_3m_change'] = nDayChange(alignedSeries['hy_oas'], 63)
   }
 
-  // Net liquidity percentile
-  if (alignedSeries['net_liquidity']) {
-    alignedSeries['net_liquidity_pctile'] = expandingPercentile(alignedSeries['net_liquidity'], 252)
+  // HY OAS percentile (expanding window, no lookahead)
+  if (alignedSeries['hy_oas']) {
+    alignedSeries['hy_oas_pctile'] = expandingPercentile(alignedSeries['hy_oas'], 252)
   }
 
   // VIX percentile
@@ -198,17 +232,17 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     alignedSeries['vix_pctile'] = expandingPercentile(alignedSeries['vix'], 252)
   }
 
-  // HY OAS percentile
-  if (alignedSeries['hy_oas']) {
-    alignedSeries['hy_oas_pctile'] = expandingPercentile(alignedSeries['hy_oas'], 252)
-  }
-
-  // Yield curve spread percentile (inverted - lower is worse)
+  // Yield curve spread percentile
   if (alignedSeries['yield_curve_spread']) {
     alignedSeries['yield_curve_pctile'] = expandingPercentile(
       alignedSeries['yield_curve_spread'],
       252
     )
+  }
+
+  // SRF percentile (for when it's > 0)
+  if (alignedSeries['srf_accepted']) {
+    alignedSeries['srf_pctile'] = expandingPercentile(alignedSeries['srf_accepted'], 60)
   }
 
   // =========================================================================
@@ -218,7 +252,11 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     hy_oas: alignedSeries['hy_oas'] ?? [],
     vix: alignedSeries['vix'] ?? [],
     yield_curve_spread: alignedSeries['yield_curve_spread'] ?? [],
-    net_liquidity_pctile: alignedSeries['net_liquidity_pctile'] ?? [],
+  }
+
+  // Only add liquidity if available
+  if (alignedSeries['liquidity_index']) {
+    correlationSeries['liquidity_index'] = alignedSeries['liquidity_index']
   }
 
   const correlations = computeRollingCorrelations(correlationSeries, grid, [
@@ -229,7 +267,9 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
   // =========================================================================
   // Compute Layer B: Trigger Stats
   // =========================================================================
-  // Build row-based data for trigger evaluation
+  const latestIndex = grid.length - 1
+
+  // Build row-based data for trigger evaluation with ACTUAL data
   const rows = grid.map((date, i) => ({
     date,
     values: {
@@ -237,15 +277,15 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
       hy_oas_3m_change: alignedSeries['hy_oas_3m_change']?.[i] ?? null,
       vix: alignedSeries['vix']?.[i] ?? null,
       yield_curve_spread: alignedSeries['yield_curve_spread']?.[i] ?? null,
-      net_liquidity_pctile: alignedSeries['net_liquidity_pctile']?.[i] ?? null,
-      srf_accepted: null, // Modern data - would need separate fetch
-      rmp_wow_change: null, // Modern data - would need separate fetch
+      net_liquidity_pctile: alignedSeries['liquidity_index']?.[i] ?? null,
+      srf_accepted: alignedSeries['srf_accepted']?.[i] ?? null,
+      rmp_wow_change: alignedSeries['rmp_wow_change']?.[i] ?? null,
       recession: alignedSeries['recession']?.[i] ?? null,
     },
   }))
 
   // Compute trigger stats for recession outcome (12 month horizon = ~252 days)
-  let triggerStats: TriggerStat[] = []
+  let triggerStats: ReturnType<typeof computeAllTriggerStats> = []
   try {
     triggerStats = computeAllTriggerStats(rows, 'recession', 252, DEFAULT_THRESHOLDS)
   } catch (error) {
@@ -255,45 +295,60 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
   // =========================================================================
   // Compute Layer C: Regime Score
   // =========================================================================
-  const latestIndex = grid.length - 1
   const latestDate = grid[latestIndex]!
 
-  const componentInputs: Record<string, { value: number | null; percentile: number | null; asOf: string }> = {
+  // Get latest values for each component
+  const getLatestValue = (seriesId: string): number | null => {
+    const series = alignedSeries[seriesId]
+    if (!series) return null
+    return series[latestIndex] ?? null
+  }
+
+  // Build component inputs with proper underlying dataset mapping
+  const componentInputs: Record<string, { value: number | null; percentile: number | null; asOf: string; datasetId: string }> = {
     credit_stress: {
-      value: alignedSeries['hy_oas']?.[latestIndex] ?? null,
-      percentile: alignedSeries['hy_oas_pctile']?.[latestIndex] ?? null,
+      value: getLatestValue('hy_oas'),
+      percentile: getLatestValue('hy_oas_pctile'),
       asOf: seriesAsOf['hy_oas'] ?? 'N/A',
+      datasetId: 'hy_oas',
     },
     liquidity_stress: {
-      value: alignedSeries['net_liquidity']?.[latestIndex] ?? null,
-      percentile: alignedSeries['net_liquidity_pctile']?.[latestIndex] ?? null,
-      asOf: seriesAsOf['net_liquidity'] ?? 'N/A',
+      // Use the pre-computed liquidity index from existing calculator
+      value: liquidityData?.current?.netLiquidity ?? null,
+      percentile: liquidityData?.current?.index ?? null,
+      asOf: liquidityData?.current?.date ?? 'N/A',
+      datasetId: 'net_liquidity',
     },
     volatility: {
-      value: alignedSeries['vix']?.[latestIndex] ?? null,
-      percentile: alignedSeries['vix_pctile']?.[latestIndex] ?? null,
+      value: getLatestValue('vix'),
+      percentile: getLatestValue('vix_pctile'),
       asOf: seriesAsOf['vix'] ?? 'N/A',
+      datasetId: 'vix',
     },
     funding_stress: {
-      value: null, // Would need SRF data
-      percentile: null,
-      asOf: 'N/A',
+      // Use actual SRF data
+      value: srfData?.current?.accepted ?? null,
+      percentile: getLatestValue('srf_pctile'),
+      asOf: srfData?.current?.date ?? 'N/A',
+      datasetId: 'srf_accepted',
     },
     curve_inversion: {
-      value: alignedSeries['yield_curve_spread']?.[latestIndex] ?? null,
-      percentile: alignedSeries['yield_curve_pctile']?.[latestIndex] ?? null,
+      value: getLatestValue('yield_curve_spread'),
+      percentile: getLatestValue('yield_curve_pctile'),
       asOf: seriesAsOf['yield_curve_spread'] ?? 'N/A',
+      datasetId: 'yield_curve_spread',
     },
   }
 
+  // Current values for trigger evaluation (with actual SRF/RMP data)
   const currentValues: Record<string, number | null> = {
-    hy_oas: alignedSeries['hy_oas']?.[latestIndex] ?? null,
-    hy_oas_3m_change: alignedSeries['hy_oas_3m_change']?.[latestIndex] ?? null,
-    vix: alignedSeries['vix']?.[latestIndex] ?? null,
-    yield_curve_spread: alignedSeries['yield_curve_spread']?.[latestIndex] ?? null,
-    net_liquidity_pctile: alignedSeries['net_liquidity_pctile']?.[latestIndex] ?? null,
-    srf_accepted: null,
-    rmp_wow_change: null,
+    hy_oas: getLatestValue('hy_oas'),
+    hy_oas_3m_change: getLatestValue('hy_oas_3m_change'),
+    vix: getLatestValue('vix'),
+    yield_curve_spread: getLatestValue('yield_curve_spread'),
+    net_liquidity_pctile: liquidityData?.current?.index ?? null,
+    srf_accepted: srfData?.current?.accepted ?? null,
+    rmp_wow_change: rmpData?.current?.wowChange ?? null,
   }
 
   const regime = computeRegimeScore(componentInputs, currentValues, latestDate)
