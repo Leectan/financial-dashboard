@@ -155,13 +155,28 @@ export const DATASET_REGISTRY: Record<string, DatasetMetadata> = {
   sp500: {
     id: 'sp500',
     name: 'S&P 500',
-    source: 'Yahoo',
+    source: 'FRED',
     frequency: 'daily',
     asOfRule: 'lastKnown',
-    knownLagDays: 0,
+    knownLagDays: 1,
     units: 'index level',
     startDate: '1950-01-03',
-    notes: 'S&P 500 index via Yahoo Finance (^GSPC)',
+    notes: 'S&P 500 index level (SP500)',
+  },
+
+  // =========================================================================
+  // Real-Economy / Cyclical Indicators
+  // =========================================================================
+  heavy_truck_sales: {
+    id: 'heavy_truck_sales',
+    name: 'Heavy Weight Truck Sales',
+    source: 'FRED',
+    frequency: 'monthly',
+    asOfRule: 'lastKnown',
+    knownLagDays: 30, // monthly release timing varies; treat as ~1 month lag for no-lookahead
+    units: 'millions of units (SAAR)',
+    startDate: '1967-01-01',
+    notes: 'Motor Vehicle Retail Sales: Heavy Weight Trucks (HTRUCKSSAAR)',
   },
 
   // =========================================================================

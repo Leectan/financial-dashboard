@@ -20,6 +20,7 @@ import {
   alignToGrid,
   expandingPercentile,
   nDayChange,
+  nDayPercentChange,
   formatDate,
   subtractDays,
   valueAsOf,
@@ -47,6 +48,10 @@ async function fetchFREDSeries(startDate: string): Promise<FetchedSeries[]> {
     { id: 'hy_oas', fredId: 'BAMLH0A0HYM2', lagDays: 1 },
     { id: 'vix', fredId: 'VIXCLS', lagDays: 1 },
     { id: 'yield_curve_spread', fredId: 'T10Y2Y', lagDays: 1 },
+    // Bravos: "Heavyweight truck sales" (Heavy Weight Trucks retail sales, SAAR)
+    { id: 'heavy_truck_sales', fredId: 'HTRUCKSSAAR', lagDays: 30 },
+    // S&P 500 level (FRED)
+    { id: 'sp500', fredId: 'SP500', lagDays: 1 },
     { id: 'recession', fredId: 'USREC', lagDays: 30 },
   ]
 
@@ -240,6 +245,17 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     )
   }
 
+  // =========================================================================
+  // Derived series for correlations (normalize to reduce trend effects)
+  // =========================================================================
+  // Use ~1-year (252 business days) percent change so monthly series remain meaningful on a daily grid.
+  if (alignedSeries['heavy_truck_sales']) {
+    alignedSeries['heavy_truck_sales_yoy'] = nDayPercentChange(alignedSeries['heavy_truck_sales'], 252)
+  }
+  if (alignedSeries['sp500']) {
+    alignedSeries['sp500_yoy'] = nDayPercentChange(alignedSeries['sp500'], 252)
+  }
+
   // SRF percentile (for when it's > 0)
   if (alignedSeries['srf_accepted']) {
     alignedSeries['srf_pctile'] = expandingPercentile(alignedSeries['srf_accepted'], 60)
@@ -257,6 +273,14 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
   // Only add liquidity if available
   if (alignedSeries['liquidity_index']) {
     correlationSeries['liquidity_index'] = alignedSeries['liquidity_index']
+  }
+
+  // Add truck sales + S&P 500 YoY if available
+  if (alignedSeries['heavy_truck_sales_yoy']) {
+    correlationSeries['heavy_truck_sales_yoy'] = alignedSeries['heavy_truck_sales_yoy']
+  }
+  if (alignedSeries['sp500_yoy']) {
+    correlationSeries['sp500_yoy'] = alignedSeries['sp500_yoy']
   }
 
   const correlations = computeRollingCorrelations(correlationSeries, grid, [

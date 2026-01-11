@@ -234,6 +234,7 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
 
   // Get top 5 by absolute spearman
   const topPairs = [...corr.pairs]
+    .filter((p) => Number.isFinite(p.spearman))
     .sort((a, b) => Math.abs(b.spearman) - Math.abs(a.spearman))
     .slice(0, 5)
 
@@ -252,6 +253,8 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
       vix: 'VIX',
       yield_curve_spread: 'Yield Curve',
       liquidity_index: 'Liquidity',
+      heavy_truck_sales_yoy: 'Heavy Truck Sales (YoY %)',
+      sp500_yoy: 'S&P 500 (YoY %)',
       sp500_drawdown: 'S&P DD',
     }
     return names[id] ?? id
@@ -277,6 +280,8 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
         'Higher volatility often coincides with tighter liquidity; calmer markets coincide with easier liquidity.',
       'hy_oas|liquidity_index':
         'Widening high-yield spreads often coincides with tighter liquidity; tightening spreads coincide with easier liquidity.',
+      'heavy_truck_sales_yoy|sp500_yoy':
+        'Stronger heavy-truck demand (a cyclical “real economy” proxy) often coincides with stronger equity performance; weakening truck demand often aligns with slowing growth/risk-off.',
     }
 
     const base = specific[key] ?? specific[invKey]
