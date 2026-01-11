@@ -13,7 +13,7 @@ import { CorpCreditSpreadsChart } from '@/components/charts/CorpCreditSpreadsCha
 import { useEffect, useMemo, useState } from 'react'
 
 export default function DashboardPage() {
-  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, srf, rmp, corpCredit } = useAllIndicators()
+  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, srf, rmp, corpCredit, corpDefaults, tsi } = useAllIndicators()
 
   const [sahm, setSahm] = useState<any>(null)
   const [housing, setHousing] = useState<any>(null)
@@ -572,20 +572,25 @@ export default function DashboardPage() {
             )}
           </IndicatorCard>
 
-          {/* HY Spread - always show */}
+          {/* HY OAS - ICE BofA US High Yield Index Option-Adjusted Spread */}
           <IndicatorCard
-            title="High-Yield Credit Spread"
+            title="ICE BofA US High Yield OAS"
             value={hySpread.data?.current ? `${hySpread.data.current.spread.toFixed(2)}%` : 'Loading...'}
-            subtitle="ICE BofA US High Yield OAS"
-            interpretation="Extra yield investors demand to hold junk bonds vs Treasuries. Higher/widening = credit stress; very low/tight = risk-on/complacency."
+            subtitle="FRED BAMLH0A0HYM2 (Option-Adjusted Spread)"
+            interpretation="Extra yield investors demand to hold junk bonds vs Treasuries. Tight spreads (<3%) indicate risk-on/complacency; widening or >5% indicates credit stress/risk-off."
             isLoading={hySpread.isLoading}
             error={hySpread.error as Error | null}
           >
             {hySpread.data?.history && (
               <SimpleLineChart
                 data={hySpread.data.history.map((p) => ({ date: p.date, value: p.spread }))}
-                valueLabel="Spread"
+                valueLabel="OAS"
                 valueFormatter={(v) => `${v.toFixed(2)}%`}
+                refLines={[
+                  { y: 3, color: '#22c55e' },
+                  { y: 5, color: '#f59e0b' },
+                  { y: 8, color: '#dc2626' },
+                ]}
                 defaultWindowCount={520}
               />
             )}
@@ -800,6 +805,66 @@ export default function DashboardPage() {
             isLoading={m2.isLoading}
           >
             {m2.data && <M2Chart data={m2.data.historical} />}
+          </IndicatorCard>
+
+          {/* Corporate Credit Defaults Proxy (Business Loans) */}
+          <IndicatorCard
+            title="Corporate Credit Defaults (Proxy)"
+            value={
+              corpDefaults.data?.currentDelinquency != null
+                ? `${corpDefaults.data.currentDelinquency.toFixed(2)}%`
+                : 'Loading...'
+            }
+            subtitle="Business loan delinquency & charge-offs (FRED)"
+            interpretation="PROXY for corporate credit stress (NOT bond default rates). Rising delinquencies and charge-offs indicate businesses struggling to service debt - a sign of credit tightening and potential recession."
+            isLoading={corpDefaults.isLoading}
+            error={corpDefaults.error as Error | null}
+          >
+            {corpDefaults.data && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Business Loan Delinquency (%)</div>
+                  <SimpleLineChart
+                    data={corpDefaults.data.delinquency}
+                    valueLabel="Delinquency"
+                    valueFormatter={(v) => `${v.toFixed(2)}%`}
+                    defaultWindowCount={120}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Business Loan Charge-Offs (%)</div>
+                  <SimpleLineChart
+                    data={corpDefaults.data.chargeOffs}
+                    valueLabel="Charge-Offs"
+                    valueFormatter={(v) => `${v.toFixed(2)}%`}
+                    defaultWindowCount={120}
+                  />
+                </div>
+              </div>
+            )}
+            {corpDefaults.data?.meta?.note && (
+              <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">{corpDefaults.data.meta.note}</div>
+            )}
+          </IndicatorCard>
+
+          {/* Freight Transportation Services Index (TSI) */}
+          <IndicatorCard
+            title="Freight Transportation Services Index (TSI)"
+            value={tsi.data?.current != null ? tsi.data.current.toFixed(1) : 'Loading...'}
+            subtitle="BTS freight activity index (2000=100)"
+            interpretation="Freight activity is a real-economy barometer. Persistent declines often precede economic slowdowns; rising = goods movement/economic activity expanding."
+            isLoading={tsi.isLoading}
+            error={tsi.error as Error | null}
+          >
+            {tsi.data?.values && (
+              <SimpleLineChart
+                data={tsi.data.values}
+                valueLabel="TSI"
+                valueFormatter={(v) => v.toFixed(1)}
+                refLines={[{ y: 100, color: '#6b7280' }]}
+                defaultWindowCount={240}
+              />
+            )}
           </IndicatorCard>
           </DashboardGrid>
 

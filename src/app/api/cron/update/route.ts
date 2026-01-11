@@ -4,6 +4,7 @@ import { finraAPI } from '@/lib/api-clients/finra'
 import { calculateBuffettIndicator } from '@/lib/calculations/buffett'
 import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculations/yield-curve'
 import { computeCorpCreditSpreads } from '@/lib/calculations/corp-credit-spreads'
+import { computeHYSpread } from '@/lib/calculations/hy-spread'
 import { computeRegimeSignals } from '@/lib/research'
 import { setCached, getCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
@@ -98,10 +99,53 @@ export async function GET(request: NextRequest) {
       await setCached(CACHE_KEYS.RESEARCH_REGIME_SIGNALS, data, CACHE_TTL.REGIME_SIGNALS)
       results.regimeSignals = 'success'
     })(),
+    (async () => {
+      const data = await computeHYSpread()
+      await setCached(CACHE_KEYS.INDICATOR_HY_SPREAD, data, CACHE_TTL.HY_SPREAD)
+      results.hySpread = 'success'
+    })(),
+    (async () => {
+      // Corporate defaults proxy: Business loan delinquency and charge-offs
+      const [delinquencyRaw, chargeOffsRaw] = await Promise.all([
+        fredAPI.getSeriesFromStart('DRBLACBS', '1990-01-01'),
+        fredAPI.getSeriesFromStart('CORBLACBS', '1990-01-01'),
+      ])
+      const delinquency = delinquencyRaw.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
+      const chargeOffs = chargeOffsRaw.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
+      const currentDelinquency = delinquency.length > 0 ? delinquency[delinquency.length - 1]?.value ?? null : null
+      const currentChargeOffs = chargeOffs.length > 0 ? chargeOffs[chargeOffs.length - 1]?.value ?? null : null
+      await setCached(`${CACHE_KEYS.INDICATOR_CORP_DEFAULTS}:start:1990-01-01`, {
+        delinquency,
+        chargeOffs,
+        currentDelinquency,
+        currentChargeOffs,
+        meta: {
+          source: 'FRED',
+          note: 'These are bank business loan credit-stress proxies (delinquency & charge-offs), NOT corporate bond default rates. Quarterly data, seasonally adjusted.',
+          delinquencySeries: 'DRBLACBS',
+          chargeOffsSeries: 'CORBLACBS',
+        },
+      }, CACHE_TTL.MONTHLY)
+      results.corpDefaults = 'success'
+    })(),
+    (async () => {
+      // Transportation Services Index (TSI)
+      const raw = await fredAPI.getSeriesFromStart('TSIFRGHT', '2000-01-01')
+      const values = raw.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
+      const lastPoint = values.length > 0 ? values[values.length - 1] : null
+      await setCached(`${CACHE_KEYS.INDICATOR_TSI}:start:2000-01-01`, {
+        values,
+        current: lastPoint?.value ?? null,
+        date: lastPoint?.date ?? null,
+        unit: 'Index (2000=100)',
+        source: 'FRED (TSIFRGHT)',
+      }, CACHE_TTL.MONTHLY)
+      results.tsi = 'success'
+    })(),
   ])
 
   updates.forEach((result, index) => {
-    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit', 'regimeSignals']
+    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit', 'regimeSignals', 'hySpread', 'corpDefaults', 'tsi']
     if (result.status === 'rejected') {
       // @ts-ignore
       results[names[index]] = 'failed'

@@ -254,6 +254,53 @@ async function fetchCorpCredit(start: string = '1997-01-01'): Promise<CorpCredit
   return json.data
 }
 
+// Corporate Defaults Proxy (Business Loan Delinquency & Charge-Offs)
+export interface CorpDefaultsPoint {
+  date: string
+  value: number
+}
+
+export interface CorpDefaultsData {
+  delinquency: CorpDefaultsPoint[]
+  chargeOffs: CorpDefaultsPoint[]
+  currentDelinquency: number | null
+  currentChargeOffs: number | null
+  meta: {
+    source: 'FRED'
+    note: string
+    delinquencySeries: string
+    chargeOffsSeries: string
+  }
+}
+
+async function fetchCorpDefaults(start: string = '1990-01-01'): Promise<CorpDefaultsData> {
+  const response = await fetch(`/api/indicators/corp-defaults?start=${start}`, { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch Corporate Defaults proxy data')
+  const json: APIResponse<CorpDefaultsData> = await response.json()
+  return json.data
+}
+
+// Transportation Services Index (TSI)
+export interface TSIPoint {
+  date: string
+  value: number
+}
+
+export interface TSIData {
+  values: TSIPoint[]
+  current: number | null
+  date: string | null
+  unit: string
+  source: string
+}
+
+async function fetchTSI(start: string = '2000-01-01'): Promise<TSIData> {
+  const response = await fetch(`/api/indicators/tsi?start=${start}`, { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch TSI data')
+  const json: APIResponse<TSIData> = await response.json()
+  return json.data
+}
+
 // All queries use longer staleTime (30 min) and retry with exponential backoff
 // because Vercel cold starts + FRED API can take 20-35 seconds
 const STALE_TIME = 30 * 60 * 1000 // 30 minutes
@@ -399,6 +446,30 @@ export function useCorpCredit(start: string = '1997-01-01'): UseQueryResult<Corp
   })
 }
 
+export function useCorpDefaults(start: string = '1990-01-01'): UseQueryResult<CorpDefaultsData> {
+  return useQuery({
+    queryKey: ['indicator', 'corp-defaults', start],
+    queryFn: () => fetchCorpDefaults(start),
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useTSI(start: string = '2000-01-01'): UseQueryResult<TSIData> {
+  return useQuery({
+    queryKey: ['indicator', 'tsi', start],
+    queryFn: () => fetchTSI(start),
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
 export function useAllIndicators() {
   const m2 = useM2()
   const yieldCurve = useYieldCurve()
@@ -411,6 +482,8 @@ export function useAllIndicators() {
   const srf = useSRF()
   const rmp = useRMP()
   const corpCredit = useCorpCredit()
+  const corpDefaults = useCorpDefaults()
+  const tsi = useTSI()
 
   return {
     m2,
@@ -424,6 +497,8 @@ export function useAllIndicators() {
     srf,
     rmp,
     corpCredit,
+    corpDefaults,
+    tsi,
     isLoading:
       m2.isLoading ||
       yieldCurve.isLoading ||
@@ -435,7 +510,9 @@ export function useAllIndicators() {
       liquidity.isLoading ||
       srf.isLoading ||
       rmp.isLoading ||
-      corpCredit.isLoading,
+      corpCredit.isLoading ||
+      corpDefaults.isLoading ||
+      tsi.isLoading,
     isError:
       m2.isError ||
       yieldCurve.isError ||
@@ -447,7 +524,9 @@ export function useAllIndicators() {
       liquidity.isError ||
       srf.isError ||
       rmp.isError ||
-      corpCredit.isError,
+      corpCredit.isError ||
+      corpDefaults.isError ||
+      tsi.isError,
     errors: {
       m2: m2.error,
       yieldCurve: yieldCurve.error,
@@ -460,6 +539,8 @@ export function useAllIndicators() {
       srf: srf.error,
       rmp: rmp.error,
       corpCredit: corpCredit.error,
+      corpDefaults: corpDefaults.error,
+      tsi: tsi.error,
     },
   }
 }

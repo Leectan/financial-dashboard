@@ -37,6 +37,8 @@ export const CACHE_KEYS = {
   INDICATOR_DEFAULT_CREDIT: 'indicator:default-credit',
   INDICATOR_RRP: 'indicator:rrp',
   INDICATOR_CORP_CREDIT: 'indicator:corp-credit',
+  INDICATOR_CORP_DEFAULTS: 'indicator:corp-defaults',
+  INDICATOR_TSI: 'indicator:tsi',
 
   // Research / Regime Signals
   RESEARCH_REGIME_SIGNALS: 'research:regime-signals:v1',
