@@ -290,6 +290,28 @@ export function nDayPercentChange(values: (number | null)[], n: number): (number
 }
 
 /**
+ * Shift a series forward in time by `days` (in array index units), returning a same-length array.
+ *
+ * This is useful for lead/lag analysis on an already-aligned time grid.
+ *
+ * Convention:
+ * - `days > 0` returns a series where `out[i] = values[i - days]` (i.e., the input leads the output by `days`)
+ * - leading indices become null
+ */
+export function shiftSeries(values: (number | null)[], days: number): (number | null)[] {
+  const n = Math.max(0, Math.floor(days))
+  const out: (number | null)[] = new Array(values.length).fill(null)
+  if (n === 0) return [...values]
+
+  for (let i = 0; i < values.length; i++) {
+    const src = i - n
+    out[i] = src >= 0 ? (values[src] ?? null) : null
+  }
+
+  return out
+}
+
+/**
  * Compute expanding percentile rank (no lookahead - uses only data up to each point)
  */
 export function expandingPercentile(values: (number | null)[], minWindow: number = 252): (number | null)[] {

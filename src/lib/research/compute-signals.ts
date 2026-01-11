@@ -21,6 +21,7 @@ import {
   expandingPercentile,
   nDayChange,
   nDayPercentChange,
+  shiftSeries,
   formatDate,
   subtractDays,
   valueAsOf,
@@ -256,6 +257,17 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     alignedSeries['sp500_yoy'] = nDayPercentChange(alignedSeries['sp500'], 252)
   }
 
+  // Lead/Lag: Bravos suggests heavy truck sales can lead equity peaks by ~6 months.
+  // Implement as a no-lookahead feature: correlate SP500(t) with TruckSales(t-6m).
+  // Approximate 6 months as ~126 business days on our business-day grid.
+  const TRUCK_LEAD_BDAYS = 126
+  if (alignedSeries['heavy_truck_sales_yoy']) {
+    alignedSeries['heavy_truck_sales_yoy_lead6m'] = shiftSeries(
+      alignedSeries['heavy_truck_sales_yoy'],
+      TRUCK_LEAD_BDAYS
+    )
+  }
+
   // SRF percentile (for when it's > 0)
   if (alignedSeries['srf_accepted']) {
     alignedSeries['srf_pctile'] = expandingPercentile(alignedSeries['srf_accepted'], 60)
@@ -278,6 +290,9 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
   // Add truck sales + S&P 500 YoY if available
   if (alignedSeries['heavy_truck_sales_yoy']) {
     correlationSeries['heavy_truck_sales_yoy'] = alignedSeries['heavy_truck_sales_yoy']
+  }
+  if (alignedSeries['heavy_truck_sales_yoy_lead6m']) {
+    correlationSeries['heavy_truck_sales_yoy_lead6m'] = alignedSeries['heavy_truck_sales_yoy_lead6m']
   }
   if (alignedSeries['sp500_yoy']) {
     correlationSeries['sp500_yoy'] = alignedSeries['sp500_yoy']

@@ -254,6 +254,7 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
       yield_curve_spread: 'Yield Curve',
       liquidity_index: 'Liquidity',
       heavy_truck_sales_yoy: 'Heavy Truck Sales (YoY %)',
+      heavy_truck_sales_yoy_lead6m: 'Heavy Truck Sales (YoY %) → S&P (Lead ~6m)',
       sp500_yoy: 'S&P 500 (YoY %)',
       sp500_drawdown: 'S&P DD',
     }
@@ -282,6 +283,8 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
         'Widening high-yield spreads often coincides with tighter liquidity; tightening spreads coincide with easier liquidity.',
       'heavy_truck_sales_yoy|sp500_yoy':
         'Stronger heavy-truck demand (a cyclical “real economy” proxy) often coincides with stronger equity performance; weakening truck demand often aligns with slowing growth/risk-off.',
+      'heavy_truck_sales_yoy_lead6m|sp500_yoy':
+        'Lead/Lag view: compares S&P 500 today vs heavy truck sales ~6 months earlier. If strongly positive, strong truck demand tends to be followed by stronger equities ~6 months later (and weakness tends to precede equity weakness).',
     }
 
     const base = specific[key] ?? specific[invKey]
