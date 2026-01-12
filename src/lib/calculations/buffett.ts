@@ -23,17 +23,48 @@ export async function calculateBuffettIndicator(fresh: boolean = false): Promise
 
   // Buffett Indicator is typically "total US equity market cap / nominal GDP".
   // We approximate total market cap using Wilshire 5000 index level, and use nominal GDP (GDP, current dollars).
-  const [wilshire, gdpLatest] = await Promise.all([
-    yahooFinanceClient.getWilshire5000(fresh),
-    fredAPI.getLatestObservation('GDP', fresh),
-  ])
+  const gdpLatestPromise = fredAPI.getLatestObservation('GDP', fresh)
 
-  const wilshireLevel = wilshire.price
+  // Yahoo "quote" endpoints for Wilshire can be stale; history endpoints are more reliable.
+  // Use last daily close from Yahoo history as the "current" Wilshire proxy.
+  const wilshireFromYahooPromise = (async () => {
+    const pts = await yahooFinanceClient.getWilshireHistory('5d', '1d', fresh)
+    const sorted = [...pts].sort((a, b) => a.date.localeCompare(b.date))
+    const last = sorted[sorted.length - 1]
+    if (!last) throw new Error('No Wilshire history points')
+    return { price: last.price, date: new Date(last.date + 'T00:00:00Z') }
+  })()
+
+  const [gdpLatest, wilshireFromYahoo] = await Promise.all([gdpLatestPromise, wilshireFromYahooPromise]).catch(async (err) => {
+    // If Yahoo fails entirely, fall back to FRED Wilshire 5000 index (daily close).
+    console.warn('Yahoo Wilshire fetch failed; falling back to FRED WILL5000IND:', err)
+    const [gdp, will5000] = await Promise.all([
+      gdpLatestPromise,
+      fredAPI.getLatestObservation('WILL5000IND', fresh),
+    ])
+    notes.push('Wilshire 5000 quote from Yahoo was unavailable; using FRED WILL5000IND (daily close) as the market proxy.')
+    return [
+      gdp,
+      { price: will5000.value, date: new Date(will5000.date + 'T00:00:00Z') },
+    ] as const
+  })
+
+  // If Yahoo returned something implausibly stale, also fall back to FRED WILL5000IND.
+  const STALE_MS = 1000 * 60 * 60 * 24 * 10 // 10 days
+  const now = Date.now()
+  let wilshireLevel = wilshireFromYahoo.price
+  let wilshireDate = wilshireFromYahoo.date
+  if (now - wilshireDate.getTime() > STALE_MS) {
+    const will5000 = await fredAPI.getLatestObservation('WILL5000IND', fresh)
+    notes.push('Wilshire 5000 from Yahoo appeared stale; using FRED WILL5000IND (daily close) as the market proxy.')
+    wilshireLevel = will5000.value
+    wilshireDate = new Date(will5000.date + 'T00:00:00Z')
+  }
+
   const gdpBillions = gdpLatest.value
   const ratio = (wilshireLevel / gdpBillions) * 100
 
-  const now = Date.now()
-  const wilshireAge = now - wilshire.date.getTime()
+  const wilshireAge = now - wilshireDate.getTime()
   const gdpAge = now - new Date(gdpLatest.date).getTime()
 
   if (gdpAge > 1000 * 60 * 60 * 24 * 120) {
@@ -56,7 +87,7 @@ export async function calculateBuffettIndicator(fresh: boolean = false): Promise
     wilshireIndexLevel: wilshireLevel,
     gdpBillions,
     interpretation,
-    wilshireDate: wilshire.date,
+    wilshireDate,
     gdpDate: gdpLatest.date,
     calculatedAt: new Date(),
     notes,
