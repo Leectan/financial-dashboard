@@ -423,7 +423,11 @@ export default function DashboardPage() {
           <IndicatorCard
             title="Buffett Indicator"
             value={buffett.data ? `${buffett.data.ratio.toFixed(1)}%` : 'Loading...'}
-            subtitle={buffett.data?.interpretation}
+            subtitle={
+              buffett.data
+                ? `${buffett.data.interpretation} • Wilshire as-of ${new Date(buffett.data.wilshireDate).toISOString().slice(0, 10)} • GDP as-of ${buffett.data.gdpDate}`
+                : undefined
+            }
             interpretation="Market value of US equities vs US GDP. Higher = “more expensive” market vs economy (lower long-run expected returns); can stay elevated for years."
             error={buffett.error as Error | null}
             isLoading={buffett.isLoading}

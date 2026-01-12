@@ -37,13 +37,13 @@ function percentile(values: number[], value: number): number {
   return Math.min(100, Math.max(0, pct * 100))
 }
 
-export async function computeFedExpectations(startISO: string = '2015-01-01'): Promise<FedExpectationsResult> {
+export async function computeFedExpectations(startISO: string = '2015-01-01', fresh: boolean = false): Promise<FedExpectationsResult> {
   // DFEDTARU: Federal Funds Target Range - Upper Limit (verify series ID in FRED)
-  const targetSeries = await fredAPI.getSeriesFromStart('DFEDTARU', startISO)
+  const targetSeries = await fredAPI.getSeriesFromStart('DFEDTARU', startISO, fresh)
   const targetMap = seriesToMap(targetSeries)
 
   // ZQ=F: generic Fed Funds futures continuous contract on Yahoo Finance (verify symbol)
-  const futuresHistory = await yahooFinanceClient.getSymbolHistory('ZQ=F', '10y', '1d')
+  const futuresHistory = await yahooFinanceClient.getSymbolHistory('ZQ=F', '10y', '1d', fresh)
   if (!futuresHistory.length) {
     return { history: [], current: null }
   }

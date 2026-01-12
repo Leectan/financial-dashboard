@@ -25,8 +25,8 @@ function percentileIndex(values: number[], value: number): number {
   return Math.min(100, Math.max(0, pct * 100))
 }
 
-export async function computeQQQDeviation(range: '10y' | 'max' = '10y'): Promise<QQQDeviationResult> {
-  const history = await yahooFinanceClient.getSymbolHistory('QQQ', range, '1d')
+export async function computeQQQDeviation(range: '10y' | 'max' = '10y', fresh: boolean = false): Promise<QQQDeviationResult> {
+  const history = await yahooFinanceClient.getSymbolHistory('QQQ', range, '1d', fresh)
   if (!history.length) {
     return { history: [], current: null }
   }

@@ -99,9 +99,9 @@ class YahooFinanceClient {
     return points
   }
 
-  async getWilshire5000() {
+  async getWilshire5000(fresh = false) {
     const cacheKey = CACHE_KEYS.YAHOO_WILSHIRE
-    const cached = await getCached<{ symbol: string; price: number; timestamp: number; date: string }>(cacheKey)
+    const cached = fresh ? null : await getCached<{ symbol: string; price: number; timestamp: number; date: string }>(cacheKey)
     if (cached) {
       return { ...cached, date: new Date(cached.date) }
     }
@@ -121,9 +121,9 @@ class YahooFinanceClient {
     throw new Error(`Failed to fetch Wilshire 5000: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`)
   }
 
-  async getWilshireHistory(range = 'max', interval: '1mo' | '1wk' | '1d' = '1mo'): Promise<HistoryPoint[]> {
+  async getWilshireHistory(range = 'max', interval: '1mo' | '1wk' | '1d' = '1mo', fresh = false): Promise<HistoryPoint[]> {
     const key = CACHE_KEYS.YAHOO_WILSHIRE_HISTORY(range, interval)
-    const cached = await getCached<HistoryPoint[]>(key)
+    const cached = fresh ? null : await getCached<HistoryPoint[]>(key)
     if (cached) return cached
 
     let lastError: unknown
@@ -140,9 +140,9 @@ class YahooFinanceClient {
     throw new Error(`Failed Yahoo history: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`)
   }
 
-  async getSymbolQuote(symbol: string) {
+  async getSymbolQuote(symbol: string, fresh = false) {
     const key = CACHE_KEYS.YAHOO_SYMBOL_QUOTE(symbol)
-    const cached = await getCached<any>(key)
+    const cached = fresh ? null : await getCached<any>(key)
     if (cached) return cached
     const q = await this.fetchQuote(symbol)
     const data = { symbol, price: q.price, timestamp: q.timestamp, date: q.date.toISOString() }
@@ -150,9 +150,9 @@ class YahooFinanceClient {
     return { ...data, date: new Date(data.date) }
   }
 
-  async getSymbolHistory(symbol: string, range = '5y', interval: '1wk' | '1d' | '1mo' = '1wk') {
+  async getSymbolHistory(symbol: string, range = '5y', interval: '1wk' | '1d' | '1mo' = '1wk', fresh = false) {
     const key = CACHE_KEYS.YAHOO_SYMBOL_HISTORY(symbol, range, interval)
-    const cached = await getCached<HistoryPoint[]>(key)
+    const cached = fresh ? null : await getCached<HistoryPoint[]>(key)
     if (cached) return cached
     const pts = await this.fetchHistory(symbol, range, interval as any)
     await setCached(key, pts, CACHE_TTL.WILSHIRE)

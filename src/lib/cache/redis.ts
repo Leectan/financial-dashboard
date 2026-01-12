@@ -62,7 +62,7 @@ export const CACHE_TTL = {
   TREASURY_YIELDS: 3600, // 1 hour
   WILSHIRE: 300, // 5 minutes for near-real-time quotes
   VIX: 300, // 5 minutes for fear gauge
-  BUFFETT: 86400, // 24 hours
+  BUFFETT: 300, // 5 minutes - Wilshire moves intraday; GDP is cached separately
   YIELD_CURVE: 3600, // 1 hour
   LIQUIDITY: 60 * 60 * 6, // 6 hours - macro liquidity moves slowly
   QQQ_DEVIATION: 900, // 15 minutes

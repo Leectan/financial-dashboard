@@ -42,10 +42,10 @@ function percentile(values: number[], value: number): number {
   return Math.min(100, Math.max(0, pct * 100))
 }
 
-export async function computePutCallIndex(range: '5y' | '10y' = '5y'): Promise<PutCallResult> {
+export async function computePutCallIndex(range: '5y' | '10y' = '5y', fresh: boolean = false): Promise<PutCallResult> {
   // NOTE: Symbol ^PCALL is widely used for CBOE total put/call ratio on Yahoo Finance,
   // but should be verified in the running environment.
-  const history = await yahooFinanceClient.getSymbolHistory('^PCALL', range, '1d')
+  const history = await yahooFinanceClient.getSymbolHistory('^PCALL', range, '1d', fresh)
   if (!history.length) return { history: [], current: null }
 
   const sorted = [...history].sort((a, b) => a.date.localeCompare(b.date))

@@ -54,12 +54,12 @@ function percentileIndex(values: number[], value: number): number {
   return Math.min(100, Math.max(0, pct * 100))
 }
 
-export async function computeLiquidity(startISO: string = '2003-01-01'): Promise<LiquidityResult> {
+export async function computeLiquidity(startISO: string = '2003-01-01', fresh: boolean = false): Promise<LiquidityResult> {
   // WALCL - Fed balance sheet, WDTGAL/WTREGEN - TGA, RRPONTSYD - ON RRP
   const [walcl, tgaSeries, rrp] = await Promise.all([
-    fredAPI.getSeriesFromStart('WALCL', startISO),
-    fredAPI.getSeriesFromStart('WDTGAL', startISO).catch(() => fredAPI.getSeriesFromStart('WTREGEN', startISO)),
-    fredAPI.getSeriesFromStart('RRPONTSYD', startISO),
+    fredAPI.getSeriesFromStart('WALCL', startISO, fresh),
+    fredAPI.getSeriesFromStart('WDTGAL', startISO, fresh).catch(() => fredAPI.getSeriesFromStart('WTREGEN', startISO, fresh)),
+    fredAPI.getSeriesFromStart('RRPONTSYD', startISO, fresh),
   ])
 
   // Critical: these series are not perfectly aligned by date across the entire history.

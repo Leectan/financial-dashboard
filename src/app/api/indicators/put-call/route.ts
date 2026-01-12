@@ -4,10 +4,12 @@ import { computePutCallIndex } from '@/lib/calculations/put-call'
 
 export const runtime = 'nodejs'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url)
+    const fresh = url.searchParams.get('fresh') === '1'
     const cacheKey = CACHE_KEYS.INDICATOR_PUTCALL
-    const cached = await getCached<any>(cacheKey)
+    const cached = fresh ? null : await getCached<any>(cacheKey)
     if (cached) {
       return NextResponse.json({
         data: cached,
@@ -20,7 +22,7 @@ export async function GET() {
     // We intentionally avoid throwing a 500 here so the dashboard remains stable.
     let data: any
     try {
-      const computed = await computePutCallIndex('5y')
+      const computed = await computePutCallIndex('5y', fresh)
       if (computed.current && computed.history.length) {
         data = { ...computed, note: 'Source: Yahoo Finance (^PCALL). Free/unofficial feed; may be rate-limited or unavailable.' }
       } else {

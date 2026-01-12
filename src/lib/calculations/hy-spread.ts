@@ -22,9 +22,9 @@ function seriesToPoints(series: FREDSeries): HYSpreadPoint[] {
   return points.sort((a, b) => a.date.localeCompare(b.date))
 }
 
-export async function computeHYSpread(startISO: string = '1997-01-01'): Promise<HYSpreadResult> {
+export async function computeHYSpread(startISO: string = '1997-01-01', fresh: boolean = false): Promise<HYSpreadResult> {
   // BAMLH0A0HYM2: ICE BofA US High Yield Index Option-Adjusted Spread
-  const series = await fredAPI.getSeriesFromStart('BAMLH0A0HYM2', startISO)
+  const series = await fredAPI.getSeriesFromStart('BAMLH0A0HYM2', startISO, fresh)
   const history = seriesToPoints(series)
   const current: HYSpreadPoint | null = history.length > 0 ? history[history.length - 1]! : null
   return { history, current }

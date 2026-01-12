@@ -8,6 +8,7 @@ import { FREDObservationSchema, FREDResponseSchema, type FREDSeries, type FREDOb
 const SERIES_TTLS: Record<string, number> = {
   WM2NS: CACHE_TTL.M2,
   GDPC1: CACHE_TTL.GDP,
+  GDP: CACHE_TTL.GDP,
   DGS10: CACHE_TTL.TREASURY_YIELDS,
   DGS2: CACHE_TTL.TREASURY_YIELDS,
   T10Y2Y: CACHE_TTL.TREASURY_YIELDS,
@@ -82,8 +83,8 @@ class FREDAPIClient {
     return observations
   }
 
-  async getLatestObservation(seriesId: string): Promise<{ value: number; date: string }> {
-    const observations = await this.getSeries(seriesId, undefined, 1)
+  async getLatestObservation(seriesId: string, fresh = false): Promise<{ value: number; date: string }> {
+    const observations = await this.getSeries(seriesId, undefined, 1, fresh)
     const latest = observations[0]
     if (!latest) {
       throw new Error(`No observations returned for ${seriesId}`)
@@ -95,8 +96,8 @@ class FREDAPIClient {
     return { value, date: latest.date }
   }
 
-  async getLatestValue(seriesId: string): Promise<number> {
-    const { value } = await this.getLatestObservation(seriesId)
+  async getLatestValue(seriesId: string, fresh = false): Promise<number> {
+    const { value } = await this.getLatestObservation(seriesId, fresh)
     return value
   }
 

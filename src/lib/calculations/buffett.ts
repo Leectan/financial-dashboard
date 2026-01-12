@@ -18,12 +18,14 @@ export interface BuffettIndicatorResult {
 
 export interface BuffettHistoryPoint { date: string; ratio: number }
 
-export async function calculateBuffettIndicator(): Promise<BuffettIndicatorResult> {
+export async function calculateBuffettIndicator(fresh: boolean = false): Promise<BuffettIndicatorResult> {
   const notes: string[] = []
 
+  // Buffett Indicator is typically "total US equity market cap / nominal GDP".
+  // We approximate total market cap using Wilshire 5000 index level, and use nominal GDP (GDP, current dollars).
   const [wilshire, gdpLatest] = await Promise.all([
-    yahooFinanceClient.getWilshire5000(),
-    fredAPI.getLatestObservation('GDPC1'),
+    yahooFinanceClient.getWilshire5000(fresh),
+    fredAPI.getLatestObservation('GDP', fresh),
   ])
 
   const wilshireLevel = wilshire.price
@@ -47,7 +49,7 @@ export async function calculateBuffettIndicator(): Promise<BuffettIndicatorResul
   else interpretation = 'Significantly Undervalued'
 
   notes.push('Wilshire 5000 index level used as a proxy for total US market cap.')
-  notes.push('GDP is inflation-adjusted real GDP in billions (GDPC1).')
+  notes.push('GDP is nominal GDP in billions of dollars (GDP).')
 
   return {
     ratio,
@@ -65,8 +67,8 @@ export async function calculateBuffettIndicator(): Promise<BuffettIndicatorResul
 export async function getBuffettHistory(): Promise<BuffettHistoryPoint[]> {
   // Monthly Wilshire history (max range)
   const wilshire = await yahooFinanceClient.getWilshireHistory('max', '1mo')
-  // Quarterly real GDP in billions from 1950 for broad history
-  const gdp = await fredAPI.getGDPHistory('1950-01-01')
+  // Quarterly nominal GDP in billions from 1950 for broad history
+  const gdp = await fredAPI.getSeriesFromStart('GDP', '1950-01-01')
   // Build a map of GDP by quarter date
   const gdpPoints = gdp.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
 

@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     }
 
     const [current, history] = await Promise.all([
-      calculateBuffettIndicator(),
+      calculateBuffettIndicator(fresh),
       getBuffettHistory(),
     ])
 
