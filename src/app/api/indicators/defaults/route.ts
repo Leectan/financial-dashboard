@@ -8,14 +8,15 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const start = searchParams.get('start') || '1990-01-01'
+    const fresh = searchParams.get('fresh') === '1'
     const key = `${CACHE_KEYS.INDICATOR_DEFAULT_CREDIT}:start:${start}`
-    const cached = await getCached<any>(key)
+    const cached = fresh ? null : await getCached<any>(key)
     if (cached) return NextResponse.json({ data: cached, cached: true, lastUpdated: new Date().toISOString() })
 
     // Proxies: consumer loan delinquency and credit card charge-offs
     const [consumerDelq, ccChargeOff] = await Promise.all([
-      fredAPI.getSeriesFromStart('DRCLACBS', start), // Delinquency Rate on Consumer Loans, All Commercial Banks
-      fredAPI.getSeriesFromStart('CORCACBS', start), // Net Charge-Offs on Credit Card Loans, All Commercial Banks
+      fredAPI.getSeriesFromStart('DRCLACBS', start, fresh), // Delinquency Rate on Consumer Loans, All Commercial Banks
+      fredAPI.getSeriesFromStart('CORCACBS', start, fresh), // Net Charge-Offs on Credit Card Loans, All Commercial Banks
     ])
     const data = {
       consumerDelinquency: consumerDelq.map((o) => ({ date: o.date, value: parseFloat(o.value) })),

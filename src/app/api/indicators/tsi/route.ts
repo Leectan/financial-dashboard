@@ -17,10 +17,10 @@ interface TSIData {
   source: string
 }
 
-async function computeTSI(start: string): Promise<TSIData> {
+async function computeTSI(start: string, fresh: boolean): Promise<TSIData> {
   // Fetch Freight Transportation Services Index from FRED
   // TSIFRGHT: Freight Transportation Services Index (Monthly, SA, Index 2000=100)
-  const raw = await fredAPI.getSeriesFromStart('TSIFRGHT', start)
+  const raw = await fredAPI.getSeriesFromStart('TSIFRGHT', start, fresh)
 
   const values = raw.map((o) => ({
     date: o.date,
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Compute fresh data
-    const data = await computeTSI(start)
+    const data = await computeTSI(start, fresh)
 
     // Cache the result (monthly data)
     await setCached(cacheKey, data, CACHE_TTL.MONTHLY)

@@ -15,14 +15,14 @@ export interface YieldCurveResult {
 
 export interface YieldCurveHistoryPoint { date: string; spread: number }
 
-export async function calculateYieldCurveSpread(): Promise<YieldCurveResult> {
+export async function calculateYieldCurveSpread(fresh: boolean = false): Promise<YieldCurveResult> {
   try {
     // Use FRED directly - it's more reliable and faster than Yahoo Finance
     // Removed Yahoo Finance to avoid slow retries on non-existent symbols
     const [latestSpread, tenY, twoY] = await Promise.all([
-      fredAPI.getLatestObservation('T10Y2Y'),
-      fredAPI.getLatestObservation('DGS10'),
-      fredAPI.getLatestObservation('DGS2'),
+      fredAPI.getLatestObservation('T10Y2Y', fresh),
+      fredAPI.getLatestObservation('DGS10', fresh),
+      fredAPI.getLatestObservation('DGS2', fresh),
     ])
 
     const treasury10Y = tenY.value
@@ -66,8 +66,8 @@ export async function calculateYieldCurveSpread(): Promise<YieldCurveResult> {
   }
 }
 
-export async function getYieldCurveHistory(startISO: string = '1950-01-01'): Promise<YieldCurveHistoryPoint[]> {
-  const series = await fredAPI.getSeriesFromStart('T10Y2Y', startISO)
+export async function getYieldCurveHistory(startISO: string = '1950-01-01', fresh: boolean = false): Promise<YieldCurveHistoryPoint[]> {
+  const series = await fredAPI.getSeriesFromStart('T10Y2Y', startISO, fresh)
   return series
     .filter((o) => o.value !== null && o.value !== undefined && o.value !== '.' && o.value !== '')
     .map((o) => ({ date: o.date, spread: parseFloat(o.value) }))

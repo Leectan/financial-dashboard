@@ -22,13 +22,13 @@ interface CorpDefaultsData {
   }
 }
 
-async function computeCorpDefaults(start: string): Promise<CorpDefaultsData> {
+async function computeCorpDefaults(start: string, fresh: boolean): Promise<CorpDefaultsData> {
   // Fetch business loan credit stress proxies from FRED
   // DRBLACBS: Delinquency Rate on Business Loans, All Commercial Banks (Quarterly, SA)
   // CORBLACBS: Charge-Off Rate on Business Loans, All Commercial Banks (Quarterly, SA)
   const [delinquencyRaw, chargeOffsRaw] = await Promise.all([
-    fredAPI.getSeriesFromStart('DRBLACBS', start),
-    fredAPI.getSeriesFromStart('CORBLACBS', start),
+    fredAPI.getSeriesFromStart('DRBLACBS', start, fresh),
+    fredAPI.getSeriesFromStart('CORBLACBS', start, fresh),
   ])
 
   const delinquency = delinquencyRaw.map((o) => ({
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Compute fresh data
-    const data = await computeCorpDefaults(start)
+    const data = await computeCorpDefaults(start, fresh)
 
     // Cache the result (quarterly data, use MONTHLY TTL)
     await setCached(cacheKey, data, CACHE_TTL.MONTHLY)

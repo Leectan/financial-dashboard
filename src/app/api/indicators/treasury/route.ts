@@ -19,8 +19,8 @@ export async function GET(request: Request) {
 
   try {
     const [current, history] = await Promise.all([
-      calculateYieldCurveSpread(),
-      getYieldCurveHistory(start),
+      calculateYieldCurveSpread(fresh),
+      getYieldCurveHistory(start, fresh),
     ])
 
     // If current reading is newer than the last historical point, append it so the chart shows "today"

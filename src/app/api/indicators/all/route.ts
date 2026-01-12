@@ -5,10 +5,12 @@ import { fredAPI } from '@/lib/api-clients/fred'
 
 export const runtime = 'edge'
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const fresh = searchParams.get('fresh') === '1'
   const results = await Promise.allSettled([
     (async () => {
-      const observations = await fredAPI.getM2MoneySupply()
+      const observations = await fredAPI.getM2MoneySupply(fresh)
       const first = observations[0]
       if (!first) throw new Error('No M2 observations')
       return {
@@ -20,8 +22,8 @@ export async function GET() {
         lastUpdated: new Date().toISOString(),
       }
     })(),
-    calculateYieldCurveSpread(),
-    calculateBuffettIndicator(),
+    calculateYieldCurveSpread(fresh),
+    calculateBuffettIndicator(fresh),
   ])
 
   const [m2Res, yieldCurveRes, buffettRes] = results

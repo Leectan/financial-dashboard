@@ -16,7 +16,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: cached, cached: true, lastUpdated: cached.lastUpdated || new Date().toISOString() })
     }
 
-    const observations = await fredAPI.getM2History(start)
+    const observations = await fredAPI.getM2History(start, fresh)
     const first = observations.at(-1) || observations[0]
     const latest = observations[observations.length - 1]
     if (!latest) {

@@ -107,16 +107,16 @@ class FREDAPIClient {
     return this.getSeries('WM2NS', CACHE_TTL.M2)
   }
 
-  async getM2History(startISO: string): Promise<FREDSeries> {
-    return this.getSeriesFromStart('WM2NS', startISO)
+  async getM2History(startISO: string, fresh: boolean = false): Promise<FREDSeries> {
+    return this.getSeriesFromStart('WM2NS', startISO, fresh)
   }
 
   async getGDP(): Promise<FREDSeries> {
     return this.getSeries('GDPC1', CACHE_TTL.GDP)
   }
 
-  async getGDPHistory(startISO: string): Promise<FREDSeries> {
-    return this.getSeriesFromStart('GDPC1', startISO)
+  async getGDPHistory(startISO: string, fresh: boolean = false): Promise<FREDSeries> {
+    return this.getSeriesFromStart('GDPC1', startISO, fresh)
   }
 
   async getTreasury10Y(): Promise<FREDSeries> {
@@ -127,17 +127,17 @@ class FREDAPIClient {
     return this.getSeries('DGS2', CACHE_TTL.TREASURY_YIELDS)
   }
 
-  async getTreasuryHistory(startISO: string): Promise<{ tenY: FREDSeries; twoY: FREDSeries }> {
+  async getTreasuryHistory(startISO: string, fresh: boolean = false): Promise<{ tenY: FREDSeries; twoY: FREDSeries }> {
     const [tenY, twoY] = await Promise.all([
-      this.getSeriesFromStart('DGS10', startISO),
-      this.getSeriesFromStart('DGS2', startISO),
+      this.getSeriesFromStart('DGS10', startISO, fresh),
+      this.getSeriesFromStart('DGS2', startISO, fresh),
     ])
     return { tenY, twoY }
   }
 
   // Alias for sample route usage
-  async getM2MoneySupply(): Promise<FREDSeries> {
-    return this.getM2()
+  async getM2MoneySupply(fresh: boolean = false): Promise<FREDSeries> {
+    return this.getSeries('WM2NS', CACHE_TTL.M2, 100, fresh)
   }
 }
 

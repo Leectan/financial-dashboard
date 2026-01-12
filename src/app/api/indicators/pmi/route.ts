@@ -11,17 +11,18 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const start = searchParams.get('start') || '1950-01-01'
+    const fresh = searchParams.get('fresh') === '1'
     const key = `${CACHE_KEYS.INDICATOR_PMI}:start:${start}`
-    const cached = await getCached<any>(key)
+    const cached = fresh ? null : await getCached<any>(key)
     if (cached) return NextResponse.json({ data: cached, cached: true, lastUpdated: new Date().toISOString() })
 
     // Try NAPM first, fall back to INDPRO (Industrial Production Index) if not available
     let series
     try {
-      series = await fredAPI.getSeriesFromStart('NAPM', start)
+      series = await fredAPI.getSeriesFromStart('NAPM', start, fresh)
     } catch {
       // NAPM may not be available, use Industrial Production as a proxy
-      series = await fredAPI.getSeriesFromStart('INDPRO', start)
+      series = await fredAPI.getSeriesFromStart('INDPRO', start, fresh)
     }
     
     const data = series

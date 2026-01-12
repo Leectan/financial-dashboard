@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     const cached = fresh ? null : await getCached<any>(key)
     if (cached) return NextResponse.json({ data: cached, cached: true, lastUpdated: new Date().toISOString() })
 
-    const series = await fredAPI.getSeriesFromStart('RRPONTSYD', start)
+    const series = await fredAPI.getSeriesFromStart('RRPONTSYD', start, fresh)
     const values = series
       .filter((o) => o.value !== null && o.value !== undefined && o.value !== '.' && o.value !== '')
       .map((o) => ({ date: o.date, value: parseFloat(o.value) }))

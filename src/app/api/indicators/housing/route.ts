@@ -8,13 +8,14 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const start = searchParams.get('start') || '1970-01-01'
+    const fresh = searchParams.get('fresh') === '1'
     const key = `${CACHE_KEYS.INDICATOR_HOUSING}:start:${start}`
-    const cached = await getCached<any>(key)
+    const cached = fresh ? null : await getCached<any>(key)
     if (cached) return NextResponse.json({ data: cached, cached: true, lastUpdated: new Date().toISOString() })
 
     const [starts, permits] = await Promise.all([
-      fredAPI.getSeriesFromStart('HOUST', start),
-      fredAPI.getSeriesFromStart('PERMIT', start),
+      fredAPI.getSeriesFromStart('HOUST', start, fresh),
+      fredAPI.getSeriesFromStart('PERMIT', start, fresh),
     ])
     const data = {
       starts: starts.map((o) => ({ date: o.date, value: parseFloat(o.value) })),

@@ -19,13 +19,13 @@ export async function GET(request: Request) {
     // Build long history from FRED, but use Yahoo for the latest intraday price
     let history: Array<{ date: string; value: number }>
     try {
-      const series = await fredAPI.getSeriesFromStart('VIXCLS', '1990-01-01')
+      const series = await fredAPI.getSeriesFromStart('VIXCLS', '1990-01-01', fresh)
       history = series
         .filter((o) => o.value !== null && o.value !== undefined && o.value !== '.' && o.value !== '')
         .map((o) => ({ date: o.date, value: parseFloat(o.value) }))
     } catch (e) {
       // If FRED fails entirely, fall back to Yahoo weekly history to keep the chart functional
-      const hist = await yahooFinanceClient.getSymbolHistory('^VIX', '5y', '1wk')
+      const hist = await yahooFinanceClient.getSymbolHistory('^VIX', '5y', '1wk', fresh)
       history = hist.map((p) => ({ date: p.date, value: p.price }))
     }
 
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     let currentValue: number
     let currentDate: Date
     try {
-      const quote = await yahooFinanceClient.getSymbolQuote('^VIX')
+      const quote = await yahooFinanceClient.getSymbolQuote('^VIX', fresh)
       currentValue = quote.price
       currentDate = quote.date
     } catch (e) {
