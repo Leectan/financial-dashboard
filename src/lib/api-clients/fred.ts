@@ -46,7 +46,8 @@ class FREDAPIClient {
     }
 
     const result = await fetchWithRetry(async () => {
-      const res = await fetch(url.toString())
+      // Important: disable Next/Vercel fetch caching. Our cache layer is Redis.
+      const res = await fetch(url.toString(), { cache: 'no-store' })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         const msg = `FRED API returned HTTP ${res.status}${text ? `: ${text}` : ''}`

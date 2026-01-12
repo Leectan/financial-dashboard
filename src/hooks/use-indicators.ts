@@ -301,6 +301,139 @@ async function fetchTSI(start: string = '2000-01-01'): Promise<TSIData> {
   return json.data
 }
 
+export interface VIXPoint {
+  date: string
+  value: number
+}
+
+export interface VIXData {
+  current: number
+  date: string
+  history: VIXPoint[]
+}
+
+async function fetchVIX(): Promise<VIXData> {
+  const response = await fetch('/api/indicators/vix', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch VIX data')
+  const json: APIResponse<VIXData> = await response.json()
+  return json.data
+}
+
+export interface SimpleSeriesPoint {
+  date: string
+  value: number
+}
+
+export interface SahmData {
+  latest: number
+  date: string
+  triggered: boolean
+  interpretation: string
+  history: SimpleSeriesPoint[]
+}
+
+async function fetchSahm(): Promise<SahmData> {
+  const response = await fetch('/api/indicators/sahm', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch Sahm Rule')
+  const json: APIResponse<SahmData> = await response.json()
+  return json.data
+}
+
+export interface HousingData {
+  starts: SimpleSeriesPoint[]
+  permits: SimpleSeriesPoint[]
+}
+
+async function fetchHousing(): Promise<HousingData> {
+  const response = await fetch('/api/indicators/housing', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch housing data')
+  const json: APIResponse<HousingData> = await response.json()
+  return json.data
+}
+
+export interface PMIData {
+  values: SimpleSeriesPoint[]
+}
+
+async function fetchPMI(): Promise<PMIData> {
+  const response = await fetch('/api/indicators/pmi', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch PMI')
+  const json: APIResponse<PMIData> = await response.json()
+  return json.data
+}
+
+export interface SentimentData {
+  values: SimpleSeriesPoint[]
+}
+
+async function fetchSentiment(): Promise<SentimentData> {
+  const response = await fetch('/api/indicators/sentiment', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch sentiment')
+  const json: APIResponse<SentimentData> = await response.json()
+  return json.data
+}
+
+export interface JoblessData {
+  values: SimpleSeriesPoint[]
+}
+
+async function fetchJobless(): Promise<JoblessData> {
+  const response = await fetch('/api/indicators/jobless', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch jobless claims')
+  const json: APIResponse<JoblessData> = await response.json()
+  return json.data
+}
+
+export interface DefaultsData {
+  consumerDelinquency: SimpleSeriesPoint[]
+  creditCardChargeOffs: SimpleSeriesPoint[]
+}
+
+async function fetchDefaults(): Promise<DefaultsData> {
+  const response = await fetch('/api/indicators/defaults', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch defaults')
+  const json: APIResponse<DefaultsData> = await response.json()
+  return json.data
+}
+
+export interface MarginPoint {
+  date: string
+  value: number
+}
+
+export interface MarginData {
+  current: number | null
+  date: string | null
+  values: MarginPoint[]
+  source: string
+  unit: string
+}
+
+async function fetchMargin(): Promise<MarginData> {
+  const response = await fetch('/api/indicators/margin', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch margin debt')
+  const json: APIResponse<MarginData> = await response.json()
+  return json.data
+}
+
+export interface RRPPoint {
+  date: string
+  value: number
+}
+
+export interface RRPData {
+  current: number | null
+  date: string | null
+  values: RRPPoint[]
+}
+
+async function fetchRRP(): Promise<RRPData> {
+  const response = await fetch('/api/indicators/rrp', { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch Reverse Repo (RRP)')
+  const json: APIResponse<RRPData> = await response.json()
+  return json.data
+}
+
 // All queries use longer staleTime (30 min) and retry with exponential backoff
 // because Vercel cold starts + FRED API can take 20-35 seconds
 const STALE_TIME = 30 * 60 * 1000 // 30 minutes
@@ -470,6 +603,114 @@ export function useTSI(start: string = '2000-01-01'): UseQueryResult<TSIData> {
   })
 }
 
+export function useVIX(): UseQueryResult<VIXData> {
+  return useQuery({
+    queryKey: ['indicator', 'vix'],
+    queryFn: fetchVIX,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useSahm(): UseQueryResult<SahmData> {
+  return useQuery({
+    queryKey: ['indicator', 'sahm'],
+    queryFn: fetchSahm,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useHousing(): UseQueryResult<HousingData> {
+  return useQuery({
+    queryKey: ['indicator', 'housing'],
+    queryFn: fetchHousing,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function usePMI(): UseQueryResult<PMIData> {
+  return useQuery({
+    queryKey: ['indicator', 'pmi'],
+    queryFn: fetchPMI,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useSentiment(): UseQueryResult<SentimentData> {
+  return useQuery({
+    queryKey: ['indicator', 'sentiment'],
+    queryFn: fetchSentiment,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useJobless(): UseQueryResult<JoblessData> {
+  return useQuery({
+    queryKey: ['indicator', 'jobless'],
+    queryFn: fetchJobless,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useDefaults(): UseQueryResult<DefaultsData> {
+  return useQuery({
+    queryKey: ['indicator', 'defaults'],
+    queryFn: fetchDefaults,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useMargin(): UseQueryResult<MarginData> {
+  return useQuery({
+    queryKey: ['indicator', 'margin'],
+    queryFn: fetchMargin,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
+export function useRRP(): UseQueryResult<RRPData> {
+  return useQuery({
+    queryKey: ['indicator', 'rrp'],
+    queryFn: fetchRRP,
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
 export function useAllIndicators() {
   const m2 = useM2()
   const yieldCurve = useYieldCurve()
@@ -484,6 +725,15 @@ export function useAllIndicators() {
   const corpCredit = useCorpCredit()
   const corpDefaults = useCorpDefaults()
   const tsi = useTSI()
+  const vix = useVIX()
+  const sahm = useSahm()
+  const housing = useHousing()
+  const pmi = usePMI()
+  const sentiment = useSentiment()
+  const jobless = useJobless()
+  const defaults = useDefaults()
+  const margin = useMargin()
+  const rrp = useRRP()
 
   return {
     m2,
@@ -499,6 +749,15 @@ export function useAllIndicators() {
     corpCredit,
     corpDefaults,
     tsi,
+    vix,
+    sahm,
+    housing,
+    pmi,
+    sentiment,
+    jobless,
+    defaults,
+    margin,
+    rrp,
     isLoading:
       m2.isLoading ||
       yieldCurve.isLoading ||
@@ -512,7 +771,16 @@ export function useAllIndicators() {
       rmp.isLoading ||
       corpCredit.isLoading ||
       corpDefaults.isLoading ||
-      tsi.isLoading,
+      tsi.isLoading ||
+      vix.isLoading ||
+      sahm.isLoading ||
+      housing.isLoading ||
+      pmi.isLoading ||
+      sentiment.isLoading ||
+      jobless.isLoading ||
+      defaults.isLoading ||
+      margin.isLoading ||
+      rrp.isLoading,
     isError:
       m2.isError ||
       yieldCurve.isError ||
@@ -526,7 +794,16 @@ export function useAllIndicators() {
       rmp.isError ||
       corpCredit.isError ||
       corpDefaults.isError ||
-      tsi.isError,
+      tsi.isError ||
+      vix.isError ||
+      sahm.isError ||
+      housing.isError ||
+      pmi.isError ||
+      sentiment.isError ||
+      jobless.isError ||
+      defaults.isError ||
+      margin.isError ||
+      rrp.isError,
     errors: {
       m2: m2.error,
       yieldCurve: yieldCurve.error,
@@ -541,6 +818,15 @@ export function useAllIndicators() {
       corpCredit: corpCredit.error,
       corpDefaults: corpDefaults.error,
       tsi: tsi.error,
+      vix: vix.error,
+      sahm: sahm.error,
+      housing: housing.error,
+      pmi: pmi.error,
+      sentiment: sentiment.error,
+      jobless: jobless.error,
+      defaults: defaults.error,
+      margin: margin.error,
+      rrp: rrp.error,
     },
   }
 }

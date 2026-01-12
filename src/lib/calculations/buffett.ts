@@ -95,11 +95,11 @@ export async function calculateBuffettIndicator(fresh: boolean = false): Promise
   }
 }
 
-export async function getBuffettHistory(): Promise<BuffettHistoryPoint[]> {
+export async function getBuffettHistory(fresh: boolean = false): Promise<BuffettHistoryPoint[]> {
   // Monthly Wilshire history (max range)
-  const wilshire = await yahooFinanceClient.getWilshireHistory('max', '1mo')
+  const wilshire = await yahooFinanceClient.getWilshireHistory('max', '1mo', fresh)
   // Quarterly nominal GDP in billions from 1950 for broad history
-  const gdp = await fredAPI.getSeriesFromStart('GDP', '1950-01-01')
+  const gdp = await fredAPI.getSeriesFromStart('GDP', '1950-01-01', fresh)
   // Build a map of GDP by quarter date
   const gdpPoints = gdp.map((o) => ({ date: o.date, value: parseFloat(o.value) }))
 

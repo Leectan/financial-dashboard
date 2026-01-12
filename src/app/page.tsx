@@ -10,72 +10,33 @@ import { YieldCurveChart } from '@/components/charts/YieldCurveChart'
 import { BuffettHistoryChart } from '@/components/charts/BuffettChart'
 import { SimpleLineChart } from '@/components/charts/SimpleLineChart'
 import { CorpCreditSpreadsChart } from '@/components/charts/CorpCreditSpreadsChart'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 export default function DashboardPage() {
-  const { m2, yieldCurve, buffett, qqqDeviation, hySpread, putCall, fedExpectations, liquidity, srf, rmp, corpCredit, corpDefaults, tsi } = useAllIndicators()
-
-  const [sahm, setSahm] = useState<any>(null)
-  const [housing, setHousing] = useState<any>(null)
-  const [pmi, setPmi] = useState<any>(null)
-  const [sentiment, setSentiment] = useState<any>(null)
-  const [jobless, setJobless] = useState<any>(null)
-  const [vix, setVix] = useState<any>(null)
-  const [margin, setMargin] = useState<any>(null)
-  const [defaults, setDefaults] = useState<any>(null)
-  const [rrp, setRrp] = useState<any>(null)
-
-  // Track loading states for useEffect-based indicators
-  const [effectLoading, setEffectLoading] = useState(true)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    const signal = controller.signal
-
-    // Backend APIs on Vercel take 20-35 seconds due to cold starts + FRED API latency
-    // Set timeout to 60 seconds to ensure we don't give up before data arrives
-    const fetchWithTimeout = (url: string, timeout = 60000) => {
-      return Promise.race([
-        fetch(url, { signal }).then((r) => r.json()),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), timeout)
-        )
-      ])
-    }
-
-    ;(async () => {
-      try {
-        const [sahmRes, housingRes, pmiRes, sentimentRes, joblessRes, vixRes, marginRes, defaultsRes, rrpRes] = await Promise.allSettled([
-          fetchWithTimeout('/api/indicators/sahm'),
-          fetchWithTimeout('/api/indicators/housing'),
-          fetchWithTimeout('/api/indicators/pmi'),
-          fetchWithTimeout('/api/indicators/sentiment'),
-          fetchWithTimeout('/api/indicators/jobless'),
-          fetchWithTimeout('/api/indicators/vix'),
-          fetchWithTimeout('/api/indicators/margin'),
-          fetchWithTimeout('/api/indicators/defaults'),
-          fetchWithTimeout('/api/indicators/rrp'),
-        ])
-
-        // Handle fulfilled promises only
-        if (sahmRes.status === 'fulfilled') setSahm(sahmRes.value.data)
-        if (housingRes.status === 'fulfilled') setHousing(housingRes.value.data)
-        if (pmiRes.status === 'fulfilled') setPmi(pmiRes.value.data)
-        if (sentimentRes.status === 'fulfilled') setSentiment(sentimentRes.value.data)
-        if (joblessRes.status === 'fulfilled') setJobless(joblessRes.value.data)
-        if (vixRes.status === 'fulfilled') setVix(vixRes.value.data)
-        if (marginRes.status === 'fulfilled') setMargin(marginRes.value.data)
-        if (defaultsRes.status === 'fulfilled') setDefaults(defaultsRes.value.data)
-        if (rrpRes.status === 'fulfilled') setRrp(rrpRes.value.data)
-      } catch (error) {
-        console.error('Error fetching indicators:', error)
-      } finally {
-        setEffectLoading(false)
-      }
-    })()
-
-    return () => controller.abort()
-  }, [])
+  const {
+    m2,
+    yieldCurve,
+    buffett,
+    qqqDeviation,
+    hySpread,
+    putCall,
+    fedExpectations,
+    liquidity,
+    srf,
+    rmp,
+    corpCredit,
+    corpDefaults,
+    tsi,
+    vix,
+    sahm,
+    housing,
+    pmi,
+    sentiment,
+    jobless,
+    defaults,
+    margin,
+    rrp,
+  } = useAllIndicators()
 
   // NO BLOCKING isLoading gate - render immediately and let individual cards show their own loading states
 
@@ -137,10 +98,10 @@ export default function DashboardPage() {
   } = useMemo(() => {
     // Require all underlying series for historical composites
     if (
-      !vix?.history ||
-      !Array.isArray(vix.history) ||
-      !sentiment?.values ||
-      !Array.isArray(sentiment.values) ||
+      !vix.data?.history ||
+      !Array.isArray(vix.data.history) ||
+      !sentiment.data?.values ||
+      !Array.isArray(sentiment.data.values) ||
       !hySpread.data?.history ||
       !liquidity.data?.history ||
       !qqqDeviation.data?.history ||
@@ -173,8 +134,8 @@ export default function DashboardPage() {
       }
     }
 
-    const vixHist = [...vix.history].sort((a: any, b: any) => a.date.localeCompare(b.date))
-    const umichHist = [...sentiment.values].sort((a: any, b: any) => a.date.localeCompare(b.date))
+    const vixHist = [...vix.data.history].sort((a: any, b: any) => a.date.localeCompare(b.date))
+    const umichHist = [...sentiment.data.values].sort((a: any, b: any) => a.date.localeCompare(b.date))
     const hyHist = [...hySpread.data.history].sort((a, b) => a.date.localeCompare(b.date))
     const liqHist = [...liquidity.data.history].sort((a, b) => a.date.localeCompare(b.date))
     const buffHist = [...(buffett.data.history || [])]
@@ -294,7 +255,7 @@ export default function DashboardPage() {
     const smartDumbCurrent = smartDumbHistory.length ? (smartDumbHistory[smartDumbHistory.length - 1]?.value ?? null) : null
 
     return { greedHistory, bubbleHistory, smartDumbHistory, greedCurrent, bubbleCurrent, smartDumbCurrent }
-  }, [vix, sentiment, hySpread.data, liquidity.data, qqqDeviation.data, buffett.data])
+  }, [vix.data, sentiment.data, hySpread.data, liquidity.data, qqqDeviation.data, buffett.data])
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8">
@@ -372,27 +333,27 @@ export default function DashboardPage() {
           {/* VIX - always show card, loading state if no data */}
           <IndicatorCard 
             title="VIX (Fear Gauge)" 
-            value={vix ? `${vix.current.toFixed(2)}` : 'Loading...'} 
+            value={vix.data ? `${vix.data.current.toFixed(2)}` : 'Loading...'} 
             subtitle="Higher = more fear"
             interpretation="Market’s expected 30-day S&P volatility. High = panic/hedging demand; very low = complacency (can be a late-cycle warning)."
-            isLoading={effectLoading && !vix}
+            isLoading={vix.isLoading && !vix.data}
           >
-            {vix && (
-              <SimpleLineChart data={vix.history} valueLabel="VIX" valueFormatter={(v) => `${v.toFixed(2)}`} refLines={[{ y: 12, color: '#22c55e' }, { y: 20, color: '#f59e0b' }, { y: 30, color: '#dc2626' }]} defaultWindowCount={156} />
+            {vix.data && (
+              <SimpleLineChart data={vix.data.history} valueLabel="VIX" valueFormatter={(v) => `${v.toFixed(2)}`} refLines={[{ y: 12, color: '#22c55e' }, { y: 20, color: '#f59e0b' }, { y: 30, color: '#dc2626' }]} defaultWindowCount={156} />
             )}
           </IndicatorCard>
 
           {/* RRP - always show card */}
           <IndicatorCard
             title="Federal Reserve Reverse Repo (ON RRP)"
-            value={rrp?.current != null ? `$${(rrp.current / 1000).toFixed(2)}T` : 'Loading...'}
+            value={rrp.data?.current != null ? `$${(rrp.data.current / 1000).toFixed(2)}T` : 'Loading...'}
             subtitle="Overnight RRPs outstanding (daily)"
             interpretation="How much cash money funds park at the Fed overnight. High = lots of idle cash; falling often means cash is moving back into markets/banks (context-dependent)."
-            isLoading={effectLoading && !rrp}
+            isLoading={rrp.isLoading && !rrp.data}
           >
-            {rrp && (
+            {rrp.data && (
               <SimpleLineChart
-                data={rrp.values}
+                data={rrp.data.values}
                 valueLabel="RRP"
                 valueFormatter={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(2)}T` : `$${v.toFixed(0)}B`)}
                 defaultWindowCount={2520}
@@ -472,32 +433,32 @@ export default function DashboardPage() {
           {/* Sahm Rule - always show */}
           <IndicatorCard
             title="Sahm Rule Recession Indicator"
-            value={sahm ? `${sahm.latest.toFixed(2)}%` : 'Loading...'}
-            subtitle={sahm?.interpretation || 'Recession probability indicator'}
+            value={sahm.data ? `${sahm.data.latest.toFixed(2)}%` : 'Loading...'}
+            subtitle={sahm.data?.interpretation || 'Recession probability indicator'}
             interpretation={
-              sahm?.triggered
+              sahm.data?.triggered
                 ? 'Triggered: unemployment has risen enough (≥0.5pp vs 12-month low) that recession is often already starting.'
                 : 'Not triggered: labor market hasn’t weakened enough by this specific historical rule.'
             }
-            isLoading={effectLoading && !sahm}
+            isLoading={sahm.isLoading && !sahm.data}
           >
-            {sahm && (
-              <SimpleLineChart data={sahm.history} valueLabel="Sahm" valueFormatter={(v) => `${v.toFixed(2)}%`} refLines={[{ y: 0.5, color: '#dc2626' }]} defaultWindowCount={240} />
+            {sahm.data && (
+              <SimpleLineChart data={sahm.data.history} valueLabel="Sahm" valueFormatter={(v) => `${v.toFixed(2)}%`} refLines={[{ y: 0.5, color: '#dc2626' }]} defaultWindowCount={240} />
             )}
           </IndicatorCard>
 
           {/* Housing - always show */}
           <IndicatorCard
             title="Housing Starts & Building Permits"
-            value={housing?.starts?.length ? `${housing.starts[housing.starts.length - 1].value.toFixed(0)}K` : 'Loading...'}
+            value={housing.data?.starts?.length ? `${housing.data.starts[housing.data.starts.length - 1]?.value.toFixed(0)}K` : 'Loading...'}
             subtitle="Monthly"
             interpretation="New home-building activity. Rising = growth/confidence; falling = rates/credit are biting and the economy is slowing (housing is a leading indicator)."
-            isLoading={effectLoading && !housing}
+            isLoading={housing.isLoading && !housing.data}
           >
-            {housing && (
+            {housing.data && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <SimpleLineChart data={housing.starts} valueLabel="Starts" valueFormatter={(v) => `${v.toFixed(0)}K`} defaultWindowCount={240} />
-                <SimpleLineChart data={housing.permits} valueLabel="Permits" valueFormatter={(v) => `${v.toFixed(0)}K`} defaultWindowCount={240} />
+                <SimpleLineChart data={housing.data.starts} valueLabel="Starts" valueFormatter={(v) => `${v.toFixed(0)}K`} defaultWindowCount={240} />
+                <SimpleLineChart data={housing.data.permits} valueLabel="Permits" valueFormatter={(v) => `${v.toFixed(0)}K`} defaultWindowCount={240} />
               </div>
             )}
           </IndicatorCard>
@@ -505,14 +466,14 @@ export default function DashboardPage() {
           {/* PMI - always show */}
           <IndicatorCard 
             title="ISM Manufacturing PMI" 
-            value={pmi?.values?.length ? `${pmi.values[pmi.values.length - 1].value.toFixed(1)}` : 'Loading...'} 
+            value={pmi.data?.values?.length ? `${pmi.data.values[pmi.data.values.length - 1]?.value.toFixed(1)}` : 'Loading...'} 
             subtitle="<50 = contraction"
             interpretation="A monthly business survey. Above 50 = expansion; below 50 = contraction. Direction and persistence matter more than one print."
-            isLoading={effectLoading && !pmi}
+            isLoading={pmi.isLoading && !pmi.data}
           >
-            {pmi && (
+            {pmi.data && (
               <SimpleLineChart
-                data={pmi.values}
+                data={pmi.data.values}
                 valueLabel="PMI"
                 valueFormatter={(v) => `${v.toFixed(1)}`}
                 refLines={[{ y: 50, color: '#22c55e' }, { y: 48, color: '#f59e0b' }]}
@@ -524,54 +485,54 @@ export default function DashboardPage() {
           {/* Consumer Sentiment - always show */}
           <IndicatorCard 
             title="Consumer Sentiment (UMich)" 
-            value={sentiment?.values?.length ? `${sentiment.values[sentiment.values.length - 1].value.toFixed(1)}` : 'Loading...'} 
+            value={sentiment.data?.values?.length ? `${sentiment.data.values[sentiment.data.values.length - 1]?.value.toFixed(1)}` : 'Loading...'} 
             subtitle="Monthly"
             interpretation="How confident households feel. Low = cautious spending; very low can be a contrarian “too pessimistic” signal. High = optimism (sometimes late-cycle)."
-            isLoading={effectLoading && !sentiment}
+            isLoading={sentiment.isLoading && !sentiment.data}
           >
-            {sentiment && (
-              <SimpleLineChart data={sentiment.values} valueLabel="Sentiment" valueFormatter={(v) => `${v.toFixed(1)}`} defaultWindowCount={240} />
+            {sentiment.data && (
+              <SimpleLineChart data={sentiment.data.values} valueLabel="Sentiment" valueFormatter={(v) => `${v.toFixed(1)}`} defaultWindowCount={240} />
             )}
           </IndicatorCard>
 
           {/* Jobless Claims - always show */}
           <IndicatorCard 
             title="Initial Jobless Claims" 
-            value={jobless?.values?.length ? `${jobless.values[jobless.values.length - 1].value.toFixed(0)}` : 'Loading...'} 
+            value={jobless.data?.values?.length ? `${jobless.data.values[jobless.data.values.length - 1]?.value.toFixed(0)}` : 'Loading...'} 
             subtitle="Weekly"
             interpretation="Near-real-time layoffs signal. Rising trend = labor market weakening (recession risk up). Falling/low = labor market tight."
-            isLoading={effectLoading && !jobless}
+            isLoading={jobless.isLoading && !jobless.data}
           >
-            {jobless && (
-              <SimpleLineChart data={jobless.values} valueLabel="Claims" valueFormatter={(v) => `${v.toFixed(0)}`} defaultWindowCount={260} />
+            {jobless.data && (
+              <SimpleLineChart data={jobless.data.values} valueLabel="Claims" valueFormatter={(v) => `${v.toFixed(0)}`} defaultWindowCount={260} />
             )}
           </IndicatorCard>
 
           {/* Margin Debt - FINRA data */}
           <IndicatorCard
             title="Margin Debt (FINRA)"
-            value={margin?.current ? `$${(margin.current / 1000000).toFixed(2)}T` : 'Loading...'}
+            value={margin.data?.current ? `$${(margin.data.current / 1000000).toFixed(2)}T` : 'Loading...'}
             subtitle="Monthly (FINRA)"
             interpretation="How much investors borrow to buy stocks. Rising = leverage/risk-on; sharp drops = deleveraging (can amplify market selloffs)."
-            isLoading={effectLoading && !margin}
+            isLoading={margin.isLoading && !margin.data}
           >
-            {margin && (
-              <SimpleLineChart data={margin.values} valueLabel="Margin Debt" valueFormatter={(v) => `$${(v / 1000000).toFixed(2)}T`} defaultWindowCount={120} />
+            {margin.data && (
+              <SimpleLineChart data={margin.data.values} valueLabel="Margin Debt" valueFormatter={(v) => `$${(v / 1000000).toFixed(2)}T`} defaultWindowCount={120} />
             )}
           </IndicatorCard>
 
           {/* Default Rates - always show */}
           <IndicatorCard 
             title="Default Rates" 
-            value={defaults ? 'See chart' : 'Loading...'} 
+            value={defaults.data ? 'See chart' : 'Loading...'} 
             subtitle="Consumer Delinquency & Credit Card Charge-offs"
             interpretation="Household credit stress. Rising = consumers struggling + lenders tighten credit (usually a lagging-but-important recession signal)."
-            isLoading={effectLoading && !defaults}
+            isLoading={defaults.isLoading && !defaults.data}
           >
-            {defaults && (
+            {defaults.data && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <SimpleLineChart data={defaults.consumerDelinquency} valueLabel="Consumer Delinquency" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
-                <SimpleLineChart data={defaults.creditCardChargeOffs} valueLabel="CC Charge-offs" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
+                <SimpleLineChart data={defaults.data.consumerDelinquency} valueLabel="Consumer Delinquency" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
+                <SimpleLineChart data={defaults.data.creditCardChargeOffs} valueLabel="CC Charge-offs" valueFormatter={(v) => `${v.toFixed(2)}%`} defaultWindowCount={240} />
               </div>
             )}
           </IndicatorCard>
@@ -675,7 +636,7 @@ export default function DashboardPage() {
             value={greedCurrent != null ? greedCurrent.toFixed(1) : 'Loading...'}
             subtitle="0 = Extreme Fear, 100 = Extreme Greed"
             interpretation="Composite (VIX + consumer sentiment) scaled 0–100. High = complacency/greed; low = fear. Extremes matter more than day-to-day wiggles."
-            isLoading={(effectLoading || !greedHistory.length)}
+            isLoading={(vix.isLoading || sentiment.isLoading) && !greedHistory.length}
           >
             {greedHistory.length > 0 && (
               <SimpleLineChart
@@ -698,7 +659,7 @@ export default function DashboardPage() {
             value={bubbleCurrent != null ? bubbleCurrent.toFixed(1) : 'Loading...'}
             subtitle="Composite of valuation, technicals, liquidity, credit, and sentiment"
             interpretation="0–100 risk regime score. High = market looks historically “bubble-like” (stretched prices + easy liquidity + tight credit spreads + greedy sentiment)."
-            isLoading={(effectLoading || qqqDeviation.isLoading || hySpread.isLoading || liquidity.isLoading || buffett.isLoading) && !bubbleHistory.length}
+            isLoading={(qqqDeviation.isLoading || hySpread.isLoading || liquidity.isLoading || buffett.isLoading || vix.isLoading || sentiment.isLoading) && !bubbleHistory.length}
           >
             {bubbleHistory.length > 0 && (
               <SimpleLineChart
@@ -721,7 +682,7 @@ export default function DashboardPage() {
             value={smartDumbCurrent != null ? smartDumbCurrent.toFixed(1) : 'Loading...'}
             subtitle="Higher = Dumb money more aggressive relative to Smart proxies"
             interpretation="A proxy: it rises when sentiment is hot while liquidity/credit conditions look late-cycle. High = crowd behavior risk; it is not a true COT/flow-based ‘smart money’ measure."
-            isLoading={(effectLoading || hySpread.isLoading || liquidity.isLoading) && !smartDumbHistory.length}
+            isLoading={(hySpread.isLoading || liquidity.isLoading || vix.isLoading || sentiment.isLoading) && !smartDumbHistory.length}
           >
             {smartDumbHistory.length > 0 && (
               <SimpleLineChart

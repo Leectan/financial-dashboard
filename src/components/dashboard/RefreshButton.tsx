@@ -9,39 +9,44 @@ export function RefreshButton() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
-    // Calculate optimized date range (last 10 years)
-    const startDate = new Date()
-    startDate.setFullYear(startDate.getFullYear() - 10)
-    const start = startDate.toISOString().slice(0, 10)
+    try {
+      // Calculate optimized date range (last 10 years)
+      const startDate = new Date()
+      startDate.setFullYear(startDate.getFullYear() - 10)
+      const start = startDate.toISOString().slice(0, 10)
 
-    // Force-refresh each API by adding fresh=1 once to break cache for this request
-    await Promise.allSettled([
-      fetch('/api/indicators/vix?fresh=1', { cache: 'no-store' }),
-      fetch(`/api/indicators/treasury?start=${start}&fresh=1`, { cache: 'no-store' }),
-      fetch(`/api/indicators/m2?start=${start}&fresh=1`, { cache: 'no-store' }),
-      fetch('/api/indicators/buffett?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/liquidity?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/qqq-deviation?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/sahm?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/housing?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/pmi?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/sentiment?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/jobless?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/margin?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/defaults?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/rrp?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/corp-credit?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/hy-spread?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/fed-expectations?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/srf?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/rmp?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/put-call?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/corp-defaults?fresh=1', { cache: 'no-store' }),
-      fetch('/api/indicators/tsi?fresh=1', { cache: 'no-store' }),
-    ])
-    await queryClient.invalidateQueries({ queryKey: ['indicator'] })
-    // Reload the page data to ensure all components get fresh data
-    window.location.reload()
+      // Warm backend caches: force-refresh each API by adding fresh=1 once.
+      await Promise.allSettled([
+        fetch('/api/indicators/vix?fresh=1', { cache: 'no-store' }),
+        fetch(`/api/indicators/treasury?start=${start}&fresh=1`, { cache: 'no-store' }),
+        fetch(`/api/indicators/m2?start=${start}&fresh=1`, { cache: 'no-store' }),
+        fetch('/api/indicators/buffett?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/liquidity?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/qqq-deviation?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/sahm?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/housing?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/pmi?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/sentiment?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/jobless?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/margin?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/defaults?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/rrp?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/corp-credit?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/hy-spread?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/fed-expectations?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/srf?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/rmp?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/put-call?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/corp-defaults?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/tsi?fresh=1', { cache: 'no-store' }),
+      ])
+
+      // Update UI without a full page reload.
+      await queryClient.invalidateQueries({ queryKey: ['indicator'] })
+      await queryClient.refetchQueries({ queryKey: ['indicator'] })
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   return (

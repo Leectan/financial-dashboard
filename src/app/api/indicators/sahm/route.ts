@@ -8,10 +8,15 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const start = searchParams.get('start') || '1970-01-01'
+    const fresh = searchParams.get('fresh') === '1'
     const key = `${CACHE_KEYS.INDICATOR_SAHM}:start:${start}`
-    const cached = await getCached<any>(key)
-    if (cached) return NextResponse.json({ data: cached, cached: true, lastUpdated: new Date().toISOString() })
-    const data = await calculateSahm(start)
+
+    if (!fresh) {
+      const cached = await getCached<any>(key)
+      if (cached) return NextResponse.json({ data: cached, cached: true, lastUpdated: new Date().toISOString() })
+    }
+
+    const data = await calculateSahm(start, fresh)
     await setCached(key, data, CACHE_TTL.MONTHLY)
     return NextResponse.json({ data, cached: false, lastUpdated: new Date().toISOString() })
   } catch (e) {

@@ -44,7 +44,7 @@ interface FetchedSeries {
  * Fetch FRED series for regime signals
  * Only fetches series not covered by existing calculators
  */
-async function fetchFREDSeries(startDate: string): Promise<FetchedSeries[]> {
+async function fetchFREDSeries(startDate: string, fresh: boolean): Promise<FetchedSeries[]> {
   const seriesConfigs = [
     { id: 'hy_oas', fredId: 'BAMLH0A0HYM2', lagDays: 1 },
     { id: 'vix', fredId: 'VIXCLS', lagDays: 1 },
@@ -61,7 +61,7 @@ async function fetchFREDSeries(startDate: string): Promise<FetchedSeries[]> {
   await Promise.all(
     seriesConfigs.map(async ({ id, fredId, lagDays }) => {
       try {
-        const data = await fredAPI.getSeriesFromStart(fredId, startDate)
+        const data = await fredAPI.getSeriesFromStart(fredId, startDate, fresh)
         const points: TimePoint[] = data
           .map((obs) => ({
             date: obs.date,
@@ -152,8 +152,8 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
 
   // Fetch all data using existing production calculators where available
   const [fredSeries, liquidityData, srfData, rmpData] = await Promise.all([
-    fetchFREDSeries(startDate),
-    computeLiquidity(startDate).catch((e) => {
+    fetchFREDSeries(startDate, fresh),
+    computeLiquidity(startDate, fresh).catch((e) => {
       console.warn('Failed to compute liquidity:', e)
       return null
     }),
