@@ -9,7 +9,7 @@
 // Dataset Registry Types
 // ============================================================================
 
-export type DataSource = 'FRED' | 'NYFedMarkets' | 'Yahoo' | 'StaticCSV'
+export type DataSource = 'FRED' | 'NYFedMarkets' | 'Yahoo' | 'StaticCSV' | 'PublicWeb'
 export type DataFrequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'irregular'
 
 export interface DatasetMetadata {

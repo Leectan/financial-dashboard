@@ -253,6 +253,7 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
       vix: 'VIX',
       yield_curve_spread: 'Yield Curve',
       liquidity_index: 'Liquidity',
+      forward_pe: 'Forward P/E',
       heavy_truck_sales_yoy: 'Heavy Truck Sales (YoY %)',
       heavy_truck_sales_yoy_lead6m: 'Heavy Truck Sales (YoY %) → S&P (Lead ~6m)',
       sp500_yoy: 'S&P 500 (YoY %)',
@@ -273,6 +274,12 @@ function CorrelationsTable({ correlations }: { correlations: RegimeSignalsRespon
     const specific: Record<string, string> = {
       'hy_oas|vix':
         'Rising volatility tends to coincide with widening high-yield credit spreads (fear + credit stress together).',
+      'forward_pe|hy_oas':
+        'Valuations (Forward P/E) tend to fall when credit stress rises (HY spreads widen), because investors demand more return and earnings expectations get marked down.',
+      'forward_pe|vix':
+        'Valuations (Forward P/E) often compress when volatility spikes (risk-off). When VIX is calm, investors are usually willing to pay higher multiples.',
+      'forward_pe|liquidity_index':
+        'Easier liquidity often supports higher valuation multiples (higher forward P/E). Tight liquidity often pressures multiples lower.',
       'yield_curve_spread|liquidity_index':
         'Easier liquidity often coincides with a more positive yield curve; tightening liquidity often coincides with a flatter/inverted curve.',
       'vix|yield_curve_spread':

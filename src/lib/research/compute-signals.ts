@@ -8,6 +8,7 @@
  */
 
 import { fredAPI } from '@/lib/api-clients/fred'
+import { fetchUSForwardPEHistory } from '@/lib/api-clients/trendonify'
 import { computeLiquidity, type LiquidityResult } from '@/lib/calculations/liquidity'
 import { computeSRFUsage, type SRFData } from '@/lib/calculations/srf'
 import { computeRMPProxy, type RMPData } from '@/lib/calculations/rmp'
@@ -81,6 +82,22 @@ async function fetchFREDSeries(startDate: string, fresh: boolean): Promise<Fetch
   return results
 }
 
+async function fetchForwardPESeries(startDate: string, fresh: boolean): Promise<FetchedSeries | null> {
+  try {
+    const raw = await fetchUSForwardPEHistory(fresh)
+    const points: TimePoint[] = raw
+      .filter((p) => p.date >= startDate && Number.isFinite(p.value))
+      .map((p) => ({ date: p.date, value: p.value }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+    if (points.length === 0) return null
+    // Treat this as effectively "as-of" the last available observation.
+    return { id: 'forward_pe', points, lagDays: 0 }
+  } catch (error) {
+    console.warn('Failed to fetch forward P/E:', error)
+    return null
+  }
+}
+
 /**
  * Convert LiquidityResult to TimePoint array for alignment
  */
@@ -151,8 +168,9 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
   const startDate = subtractDays(today, 365 * 10)
 
   // Fetch all data using existing production calculators where available
-  const [fredSeries, liquidityData, srfData, rmpData] = await Promise.all([
+  const [fredSeries, forwardPE, liquidityData, srfData, rmpData] = await Promise.all([
     fetchFREDSeries(startDate, fresh),
+    fetchForwardPESeries(startDate, fresh),
     computeLiquidity(startDate, fresh).catch((e) => {
       console.warn('Failed to compute liquidity:', e)
       return null
@@ -174,6 +192,10 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
 
   // Combine all series
   const allSeries: FetchedSeries[] = [...fredSeries]
+
+  if (forwardPE && forwardPE.points.length > 0) {
+    allSeries.push(forwardPE)
+  }
 
   if (liquidityPoints) {
     allSeries.push({ id: 'net_liquidity', points: liquidityPoints.netLiquidity, lagDays: 7 })
@@ -280,6 +302,11 @@ export async function computeRegimeSignals(fresh: boolean = false): Promise<Regi
     hy_oas: alignedSeries['hy_oas'] ?? [],
     vix: alignedSeries['vix'] ?? [],
     yield_curve_spread: alignedSeries['yield_curve_spread'] ?? [],
+  }
+
+  // Equity valuation (forward estimates)
+  if (alignedSeries['forward_pe']) {
+    correlationSeries['forward_pe'] = alignedSeries['forward_pe']
   }
 
   // Only add liquidity if available

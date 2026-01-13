@@ -12,6 +12,21 @@ import type { DatasetMetadata } from './types'
 
 export const DATASET_REGISTRY: Record<string, DatasetMetadata> = {
   // =========================================================================
+  // Equity Valuation (Forward Estimates)
+  // =========================================================================
+  forward_pe: {
+    id: 'forward_pe',
+    name: 'S&P 500 Forward P/E',
+    source: 'PublicWeb',
+    frequency: 'daily',
+    asOfRule: 'lastKnown',
+    knownLagDays: 0, // scraped from a public page; treat as current when updated
+    units: 'P/E',
+    startDate: '2009-05-01',
+    notes: 'Forward P/E for US stocks (S&P 500 proxy) scraped from Trendonify public series.',
+  },
+
+  // =========================================================================
   // Credit Stress Indicators
   // =========================================================================
   hy_oas: {
