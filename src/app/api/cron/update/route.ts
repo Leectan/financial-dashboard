@@ -6,6 +6,7 @@ import { calculateYieldCurveSpread, getYieldCurveHistory } from '@/lib/calculati
 import { computeCorpCreditSpreads } from '@/lib/calculations/corp-credit-spreads'
 import { computeHYSpread } from '@/lib/calculations/hy-spread'
 import { computeRegimeSignals } from '@/lib/research'
+import { fetchUSForwardPEHistory } from '@/lib/api-clients/trendonify'
 import { setCached, getCached, CACHE_KEYS, CACHE_TTL } from '@/lib/cache/redis'
 
 export const runtime = 'nodejs'
@@ -41,6 +42,29 @@ export async function GET(request: NextRequest) {
       }
       await setCached(CACHE_KEYS.INDICATOR_M2, formatted, CACHE_TTL.M2)
       results.m2 = 'success'
+    })(),
+    (async () => {
+      // Forward P/E (public series scrape)
+      const start = '2009-01-01'
+      const all = await fetchUSForwardPEHistory(true)
+      const values = all.filter((p) => p.date >= start)
+      const last = values.length ? values[values.length - 1] : null
+      await setCached(
+        `${CACHE_KEYS.INDICATOR_FORWARD_PE}:start:${start}`,
+        {
+          current: last?.value ?? null,
+          date: last?.date ?? null,
+          values,
+          unit: 'P/E (forward)',
+          source: 'Trendonify (public forward P/E series)',
+          notes: [
+            'Forward P/E is based on estimated future earnings; estimates can change and are not “final” like reported earnings.',
+            'This series is sourced from a public Trendonify webpage and parsed server-side; if their markup changes, this chart may temporarily fail until updated.',
+          ],
+        },
+        CACHE_TTL.FORWARD_PE
+      )
+      results.forwardPE = 'success'
     })(),
     (async () => {
       const data = await calculateYieldCurveSpread()
@@ -145,7 +169,7 @@ export async function GET(request: NextRequest) {
   ])
 
   updates.forEach((result, index) => {
-    const names = ['m2', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit', 'regimeSignals', 'hySpread', 'corpDefaults', 'tsi']
+    const names = ['m2', 'forwardPE', 'yieldCurve', 'buffett', 'margin', 'defaults', 'rrp', 'corpCredit', 'regimeSignals', 'hySpread', 'corpDefaults', 'tsi']
     if (result.status === 'rejected') {
       // @ts-ignore
       results[names[index]] = 'failed'

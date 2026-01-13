@@ -17,6 +17,7 @@ export default function DashboardPage() {
     m2,
     yieldCurve,
     buffett,
+    forwardPE,
     qqqDeviation,
     hySpread,
     putCall,
@@ -394,6 +395,36 @@ export default function DashboardPage() {
             isLoading={buffett.isLoading}
           >
             {buffett.data?.history && <BuffettHistoryChart history={buffett.data.history} />}
+          </IndicatorCard>
+
+          <IndicatorCard
+            title="S&P 500 Forward P/E"
+            value={forwardPE.data?.current != null ? forwardPE.data.current.toFixed(2) : 'Loading...'}
+            subtitle={forwardPE.data?.date ? `As of ${forwardPE.data.date}` : 'Forward price/earnings ratio'}
+            interpretation="Forward P/E uses projected future earnings (analyst estimates). Higher = investors paying more per $ of expected earnings (richer valuations). Lower = cheaper, or expectations falling."
+            isLoading={forwardPE.isLoading}
+            error={forwardPE.error as Error | null}
+          >
+            {forwardPE.data?.values?.length ? (
+              <>
+                <SimpleLineChart
+                  data={forwardPE.data.values}
+                  valueLabel="Forward P/E"
+                  valueFormatter={(v) => v.toFixed(2)}
+                  refLines={[
+                    { y: 15, color: '#22c55e' },
+                    { y: 20, color: '#f59e0b' },
+                    { y: 25, color: '#dc2626' },
+                  ]}
+                  defaultWindowCount={260}
+                />
+                {forwardPE.data.notes?.length ? (
+                  <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">
+                    {forwardPE.data.notes[0]}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
           </IndicatorCard>
 
           {/* QQQ Deviation - always show */}

@@ -434,6 +434,28 @@ async function fetchRRP(): Promise<RRPData> {
   return json.data
 }
 
+// Forward P/E (public series scrape)
+export interface ForwardPEPoint {
+  date: string
+  value: number
+}
+
+export interface ForwardPEData {
+  current: number | null
+  date: string | null
+  values: ForwardPEPoint[]
+  unit: string
+  source: string
+  notes: string[]
+}
+
+async function fetchForwardPE(start: string = '2009-01-01'): Promise<ForwardPEData> {
+  const response = await fetch(`/api/indicators/forward-pe?start=${start}`, { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch Forward P/E')
+  const json: APIResponse<ForwardPEData> = await response.json()
+  return json.data
+}
+
 // All queries use longer staleTime (30 min) and retry with exponential backoff
 // because Vercel cold starts + FRED API can take 20-35 seconds
 const STALE_TIME = 30 * 60 * 1000 // 30 minutes
@@ -711,6 +733,18 @@ export function useRRP(): UseQueryResult<RRPData> {
   })
 }
 
+export function useForwardPE(start: string = '2009-01-01'): UseQueryResult<ForwardPEData> {
+  return useQuery({
+    queryKey: ['indicator', 'forward-pe', start],
+    queryFn: () => fetchForwardPE(start),
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
 export function useAllIndicators() {
   const m2 = useM2()
   const yieldCurve = useYieldCurve()
@@ -734,6 +768,7 @@ export function useAllIndicators() {
   const defaults = useDefaults()
   const margin = useMargin()
   const rrp = useRRP()
+  const forwardPE = useForwardPE()
 
   return {
     m2,
@@ -758,6 +793,7 @@ export function useAllIndicators() {
     defaults,
     margin,
     rrp,
+    forwardPE,
     isLoading:
       m2.isLoading ||
       yieldCurve.isLoading ||
@@ -780,7 +816,8 @@ export function useAllIndicators() {
       jobless.isLoading ||
       defaults.isLoading ||
       margin.isLoading ||
-      rrp.isLoading,
+      rrp.isLoading ||
+      forwardPE.isLoading,
     isError:
       m2.isError ||
       yieldCurve.isError ||
@@ -803,7 +840,8 @@ export function useAllIndicators() {
       jobless.isError ||
       defaults.isError ||
       margin.isError ||
-      rrp.isError,
+      rrp.isError ||
+      forwardPE.isError,
     errors: {
       m2: m2.error,
       yieldCurve: yieldCurve.error,
@@ -827,6 +865,7 @@ export function useAllIndicators() {
       defaults: defaults.error,
       margin: margin.error,
       rrp: rrp.error,
+      forwardPE: forwardPE.error,
     },
   }
 }
