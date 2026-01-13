@@ -456,6 +456,30 @@ async function fetchForwardPE(start: string = '2009-01-01'): Promise<ForwardPEDa
   return json.data
 }
 
+// BofA Bull & Bear (Proxy)
+export interface BofaBullBearComponent {
+  id: string
+  name: string
+  percentile: number | null
+  sentiment: string
+  series: Array<{ date: string; value: number }>
+  source: string
+  note?: string
+}
+
+export interface BofaBullBearData {
+  asOf: string
+  components: BofaBullBearComponent[]
+  notes: string[]
+}
+
+async function fetchBofaBullBear(start: string = '2010-01-01'): Promise<BofaBullBearData> {
+  const response = await fetch(`/api/indicators/bofa-bb?start=${start}`, { cache: 'no-store' })
+  if (!response.ok) throw new Error('Failed to fetch BofA Bull & Bear proxy')
+  const json: APIResponse<BofaBullBearData> = await response.json()
+  return json.data
+}
+
 // All queries use longer staleTime (30 min) and retry with exponential backoff
 // because Vercel cold starts + FRED API can take 20-35 seconds
 const STALE_TIME = 30 * 60 * 1000 // 30 minutes
@@ -745,6 +769,18 @@ export function useForwardPE(start: string = '2009-01-01'): UseQueryResult<Forwa
   })
 }
 
+export function useBofaBullBear(start: string = '2010-01-01'): UseQueryResult<BofaBullBearData> {
+  return useQuery({
+    queryKey: ['indicator', 'bofa-bb', start],
+    queryFn: () => fetchBofaBullBear(start),
+    staleTime: STALE_TIME,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: RETRY_DELAY,
+  })
+}
+
 export function useAllIndicators() {
   const m2 = useM2()
   const yieldCurve = useYieldCurve()
@@ -769,6 +805,7 @@ export function useAllIndicators() {
   const margin = useMargin()
   const rrp = useRRP()
   const forwardPE = useForwardPE()
+  const bofaBB = useBofaBullBear()
 
   return {
     m2,
@@ -794,6 +831,7 @@ export function useAllIndicators() {
     margin,
     rrp,
     forwardPE,
+    bofaBB,
     isLoading:
       m2.isLoading ||
       yieldCurve.isLoading ||
@@ -817,7 +855,8 @@ export function useAllIndicators() {
       defaults.isLoading ||
       margin.isLoading ||
       rrp.isLoading ||
-      forwardPE.isLoading,
+      forwardPE.isLoading ||
+      bofaBB.isLoading,
     isError:
       m2.isError ||
       yieldCurve.isError ||
@@ -841,7 +880,8 @@ export function useAllIndicators() {
       defaults.isError ||
       margin.isError ||
       rrp.isError ||
-      forwardPE.isError,
+      forwardPE.isError ||
+      bofaBB.isError,
     errors: {
       m2: m2.error,
       yieldCurve: yieldCurve.error,
@@ -866,6 +906,7 @@ export function useAllIndicators() {
       margin: margin.error,
       rrp: rrp.error,
       forwardPE: forwardPE.error,
+      bofaBB: bofaBB.error,
     },
   }
 }

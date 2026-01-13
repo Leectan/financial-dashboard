@@ -21,6 +21,7 @@ export function RefreshButton() {
         fetch(`/api/indicators/treasury?start=${start}&fresh=1`, { cache: 'no-store' }),
         fetch(`/api/indicators/m2?start=${start}&fresh=1`, { cache: 'no-store' }),
         fetch('/api/indicators/forward-pe?fresh=1', { cache: 'no-store' }),
+        fetch('/api/indicators/bofa-bb?fresh=1', { cache: 'no-store' }),
         fetch('/api/indicators/buffett?fresh=1', { cache: 'no-store' }),
         fetch('/api/indicators/liquidity?fresh=1', { cache: 'no-store' }),
         fetch('/api/indicators/qqq-deviation?fresh=1', { cache: 'no-store' }),

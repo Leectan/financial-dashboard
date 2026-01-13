@@ -20,6 +20,7 @@ export const CACHE_KEYS = {
   INDICATOR_YIELD_CURVE: 'indicator:yield-curve',
   INDICATOR_M2: 'indicator:m2',
   INDICATOR_FORWARD_PE: 'indicator:forward-pe',
+  INDICATOR_BOFA_BB: 'indicator:bofa-bull-bear',
   INDICATOR_LIQUIDITY: 'indicator:liquidity',
   INDICATOR_QQQ_DEVIATION: 'indicator:qqq-deviation',
   INDICATOR_HY_SPREAD: 'indicator:hy-spread',
@@ -66,6 +67,7 @@ export const CACHE_TTL = {
   BUFFETT: 300, // 5 minutes - Wilshire moves intraday; GDP is cached separately
   YIELD_CURVE: 3600, // 1 hour
   FORWARD_PE: 60 * 60 * 6, // 6 hours - updates daily; keep reasonably fresh
+  BOFA_BB: 60 * 60 * 6, // 6 hours - composite proxy; components update daily/weekly
   LIQUIDITY: 60 * 60 * 6, // 6 hours - macro liquidity moves slowly
   QQQ_DEVIATION: 900, // 15 minutes
   HY_SPREAD: 60 * 60 * 6, // 6 hours

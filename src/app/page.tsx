@@ -37,6 +37,7 @@ export default function DashboardPage() {
     defaults,
     margin,
     rrp,
+    bofaBB,
   } = useAllIndicators()
 
   // NO BLOCKING isLoading gate - render immediately and let individual cards show their own loading states
@@ -422,6 +423,80 @@ export default function DashboardPage() {
                   <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">
                     {forwardPE.data.notes[0]}
                   </div>
+                ) : null}
+              </>
+            ) : null}
+          </IndicatorCard>
+
+          <IndicatorCard
+            title="BofA Bull & Bear Indicator (Proxy)"
+            value={bofaBB.data?.asOf ? `As of ${bofaBB.data.asOf}` : 'Loading...'}
+            subtitle="6 components (percentile scores, proxy data)"
+            interpretation="This mirrors BofA’s Bull & Bear component table, but uses free, auditable proxies where the original datasets are paywalled (EPFR/Lipper/BofA FMS)."
+            isLoading={bofaBB.isLoading}
+            error={bofaBB.error as Error | null}
+          >
+            {bofaBB.data?.components?.length ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                        <th className="py-2 pr-2">Component</th>
+                        <th className="py-2 pr-2">Percentile</th>
+                        <th className="py-2">Sentiment</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bofaBB.data.components.map((c) => (
+                        <tr key={c.id} className="border-b border-gray-100 dark:border-gray-800">
+                          <td className="py-2 pr-2 text-gray-800 dark:text-gray-200">{c.name}</td>
+                          <td className="py-2 pr-2 font-mono text-gray-900 dark:text-gray-100">
+                            {c.percentile != null ? `${c.percentile.toFixed(0)}%` : '—'}
+                          </td>
+                          <td className="py-2">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                                c.sentiment?.includes('Bullish')
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                  : c.sentiment?.includes('Bearish')
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                              }`}
+                            >
+                              {c.sentiment}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {bofaBB.data.components.map((c) => (
+                    <div key={`${c.id}-chart`}>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{c.name} (percentile)</div>
+                      <SimpleLineChart
+                        data={c.series}
+                        valueLabel="Pct"
+                        valueFormatter={(v) => `${v.toFixed(0)}%`}
+                        refLines={[
+                          { y: 20, color: '#dc2626' },
+                          { y: 50, color: '#6b7280' },
+                          { y: 80, color: '#22c55e' },
+                        ]}
+                        defaultWindowCount={260}
+                      />
+                      {c.note ? (
+                        <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-500">{c.note}</div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
+                {bofaBB.data.notes?.length ? (
+                  <div className="mt-3 text-xs text-gray-500 dark:text-gray-500">{bofaBB.data.notes[0]}</div>
                 ) : null}
               </>
             ) : null}
