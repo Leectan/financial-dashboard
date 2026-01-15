@@ -1,5 +1,6 @@
-import { fredAPI } from '@/lib/api-clients/fred'
 import { yahooFinanceClient } from '@/lib/api-clients/yahoo-finance'
+import { fetchIsharesFundHistoricalFromProductPage } from '@/lib/api-clients/ishares'
+import { fetchNaaimExposureHistory } from '@/lib/api-clients/naaim'
 
 export type SeriesPoint = { date: string; value: number }
 
@@ -90,7 +91,24 @@ async function computeHedgeFundPositioning(startISO: string): Promise<{ series: 
 }
 
 async function computeFmsPositioningProxy(startISO: string): Promise<{ series: SeriesPoint[]; source: string; note: string }> {
-  // Proxy BofA Fund Manager Survey positioning with Asset Manager net % OI in E-mini S&P 500.
+  // Best free "manager positioning" proxy: NAAIM Exposure Index (weekly), published by NAAIM as a public XLSX.
+  // Fallback: CFTC Asset Manager net %OI (also free, weekly) in case NAAIM fetch/parsing fails.
+  try {
+    const naaim = await fetchNaaimExposureHistory()
+    const series: SeriesPoint[] = naaim.values
+      .filter((p) => p.date >= startISO && Number.isFinite(p.value))
+      .map((p) => ({ date: p.date, value: p.value }))
+    if (series.length > 0) {
+      return {
+        series,
+        source: `NAAIM Exposure Index (weekly, public XLSX)`,
+        note: `Source file: ${naaim.sourceUrl}. Proxy: BofA FMS is proprietary; NAAIM is a free, widely used active-manager exposure gauge.`,
+      }
+    }
+  } catch (e) {
+    // fall through to CFTC
+  }
+
   const rows = await fetchCftcTffSeries('13874A', startISO)
   const series: SeriesPoint[] = []
   for (const r of rows) {
@@ -106,66 +124,77 @@ async function computeFmsPositioningProxy(startISO: string): Promise<{ series: S
   return {
     series,
     source: 'CFTC Public Reporting (COT TFF FutOnly, Asset Manager net %OI, E-mini S&P 500)',
-    note: 'Proxy: BofA Fund Manager Survey is proprietary; using CFTC Asset Manager positioning as a free, auditable proxy.',
+    note: 'Fallback proxy: using CFTC Asset Manager positioning when NAAIM fetch is unavailable.',
   }
 }
 
-async function computeEquityFlowProxy(fresh: boolean): Promise<{ series: SeriesPoint[]; source: string; note: string }> {
-  // Free flow data like EPFR/Lipper is generally paid; proxy with SPY 12-week momentum.
-  const hist = await yahooFinanceClient.getSymbolHistory('SPY', '10y', '1wk', fresh)
-  const pts = [...hist].sort((a, b) => a.date.localeCompare(b.date))
+async function computeEquityFlowProxy(startISO: string, fresh: boolean): Promise<{ series: SeriesPoint[]; source: string; note: string }> {
+  // Best free/near-real-time "flow" proxy: ETF creations/redemptions via shares outstanding changes.
+  // iShares publishes an auditable daily Historical sheet in its “Data Download” XLS (SpreadsheetML).
+  const hist = await fetchIsharesFundHistoricalFromProductPage(
+    'https://www.ishares.com/us/products/239726/ishares-core-sp-500-etf',
+  )
   const series: SeriesPoint[] = []
-  const lookback = 12
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i]
-    if (!p) continue
-    if (i < lookback) continue
-    const prev = pts[i - lookback]
-    if (!prev) continue
-    const ret = ((p.price - prev.price) / prev.price) * 100
-    series.push({ date: p.date, value: ret })
+  for (let i = 1; i < hist.length; i++) {
+    const prev = hist[i - 1]
+    const cur = hist[i]
+    const prevShares = prev?.sharesOutstanding
+    const curShares = cur?.sharesOutstanding
+    if (!cur?.date || !Number.isFinite(prevShares) || !Number.isFinite(curShares) || prevShares! <= 0) continue
+    if (cur.date < startISO) continue
+    const pct = ((curShares! - prevShares!) / prevShares!) * 100
+    series.push({ date: cur.date, value: pct })
   }
   return {
     series,
-    source: 'Yahoo Finance (SPY, 12-week momentum proxy)',
-    note: 'Proxy: true EPFR/Lipper equity fund flow series are typically paywalled; using SPY 12-week return as a rough risk-on “flow-like” proxy.',
+    source: 'iShares (IVV Data Download → Historical → Shares Outstanding Δ% daily)',
+    note: 'Using daily % change in shares outstanding as a proxy for equity fund flows (ETF creations/redemptions). Positive = net inflows; negative = net outflows.',
   }
 }
 
-async function computeBondFlowProxy(fresh: boolean): Promise<{ series: SeriesPoint[]; source: string; note: string }> {
-  // Proxy bond flows with TLT 12-week momentum.
-  const hist = await yahooFinanceClient.getSymbolHistory('TLT', '10y', '1wk', fresh)
-  const pts = [...hist].sort((a, b) => a.date.localeCompare(b.date))
+async function computeBondFlowProxy(startISO: string, fresh: boolean): Promise<{ series: SeriesPoint[]; source: string; note: string }> {
+  const hist = await fetchIsharesFundHistoricalFromProductPage(
+    'https://www.ishares.com/us/products/239458/ishares-core-us-aggregate-bond-etf',
+  )
   const series: SeriesPoint[] = []
-  const lookback = 12
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i]
-    if (!p) continue
-    if (i < lookback) continue
-    const prev = pts[i - lookback]
-    if (!prev) continue
-    const ret = ((p.price - prev.price) / prev.price) * 100
-    series.push({ date: p.date, value: ret })
+  for (let i = 1; i < hist.length; i++) {
+    const prev = hist[i - 1]
+    const cur = hist[i]
+    const prevShares = prev?.sharesOutstanding
+    const curShares = cur?.sharesOutstanding
+    if (!cur?.date || !Number.isFinite(prevShares) || !Number.isFinite(curShares) || prevShares! <= 0) continue
+    if (cur.date < startISO) continue
+    const pct = ((curShares! - prevShares!) / prevShares!) * 100
+    series.push({ date: cur.date, value: pct })
   }
   return {
     series,
-    source: 'Yahoo Finance (TLT, 12-week momentum proxy)',
-    note: 'Proxy: true EPFR/Lipper bond fund flow series are typically paywalled; using TLT 12-week return as a rough bond-demand “flow-like” proxy.',
+    source: 'iShares (AGG Data Download → Historical → Shares Outstanding Δ% daily)',
+    note: 'Using daily % change in shares outstanding as a proxy for bond fund flows (ETF creations/redemptions). Positive = net inflows; negative = net outflows.',
   }
 }
 
 async function computeCreditMarketTechnicals(startISO: string, fresh: boolean): Promise<{ series: SeriesPoint[]; source: string; note: string; invert: boolean }> {
-  // Proxy credit technicals with HY OAS level; tighter spreads = more bullish, so we invert percentile.
-  const raw = await fredAPI.getSeriesFromStart('BAMLH0A0HYM2', startISO, fresh)
-  const series = raw
-    .map((o) => ({ date: o.date, value: parseFloat(o.value) }))
-    .filter((p) => !Number.isNaN(p.value))
-    .sort((a, b) => a.date.localeCompare(b.date))
+  // Best free/near-real-time "credit technicals" proxy: high-yield ETF share creations/redemptions.
+  const hist = await fetchIsharesFundHistoricalFromProductPage(
+    'https://www.ishares.com/us/products/239565/ishares-iboxx-high-yield-corporate-bond-etf',
+  )
+  const series: SeriesPoint[] = []
+  for (let i = 1; i < hist.length; i++) {
+    const prev = hist[i - 1]
+    const cur = hist[i]
+    const prevShares = prev?.sharesOutstanding
+    const curShares = cur?.sharesOutstanding
+    if (!cur?.date || !Number.isFinite(prevShares) || !Number.isFinite(curShares) || prevShares! <= 0) continue
+    if (cur.date < startISO) continue
+    const pct = ((curShares! - prevShares!) / prevShares!) * 100
+    series.push({ date: cur.date, value: pct })
+  }
   return {
     series,
-    source: 'FRED (BAMLH0A0HYM2)',
-    note: 'Proxy: BofA “Credit Market Technicals” blends multiple internals; we approximate with HY OAS tightness (tighter spreads = more bullish).',
-    invert: true,
+    source: 'iShares (HYG Data Download → Historical → Shares Outstanding Δ% daily)',
+    note: 'Using daily % change in shares outstanding as a proxy for high-yield credit “technical” demand (ETF creations/redemptions). Positive = net inflows; negative = net outflows.',
+    invert: false,
   }
 }
 
@@ -200,8 +229,8 @@ export async function computeBofaBullBearProxy(startISO: string, fresh: boolean)
   const [hedgeFund, fms, equityFlow, bondFlow, credit, breadth] = await Promise.all([
     computeHedgeFundPositioning(startISO),
     computeFmsPositioningProxy(startISO),
-    computeEquityFlowProxy(fresh),
-    computeBondFlowProxy(fresh),
+    computeEquityFlowProxy(startISO, fresh),
+    computeBondFlowProxy(startISO, fresh),
     computeCreditMarketTechnicals(startISO, fresh),
     computeGlobalBreadthProxy(fresh),
   ])
@@ -280,7 +309,8 @@ export async function computeBofaBullBearProxy(startISO: string, fresh: boolean)
     asOf: latestDate,
     components,
     notes: [
-      'This mirrors the structure of the BofA Bull & Bear indicator table. Several components use free proxies because the original sources (EPFR, Lipper, BofA FMS) are typically paywalled.',
+      'This mirrors the structure of the BofA Bull & Bear indicator table, but uses only free/public sources.',
+      'Equity/Bond/Credit “flow/technical” components use ETF shares outstanding changes (creation/redemption activity) from iShares fund Data Download files.',
       'Each component is converted into a 0–100 percentile score to match the BofA table style.',
     ],
   }

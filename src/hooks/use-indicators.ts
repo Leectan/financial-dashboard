@@ -353,6 +353,10 @@ async function fetchHousing(): Promise<HousingData> {
 
 export interface PMIData {
   values: SimpleSeriesPoint[]
+  meta?: {
+    seriesId?: string
+    note?: string
+  }
 }
 
 async function fetchPMI(): Promise<PMIData> {

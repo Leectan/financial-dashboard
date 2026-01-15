@@ -432,7 +432,7 @@ export default function DashboardPage() {
             title="BofA Bull & Bear Indicator (Proxy)"
             value={bofaBB.data?.asOf ? `As of ${bofaBB.data.asOf}` : 'Loading...'}
             subtitle="6 components (percentile scores, proxy data)"
-            interpretation="This mirrors BofA’s Bull & Bear component table, but uses free, auditable proxies where the original datasets are paywalled (EPFR/Lipper/BofA FMS)."
+            interpretation="This mirrors BofA’s Bull & Bear component table, but uses free, auditable public datasets. Flow/technical components use iShares ETF share creation/redemption activity (shares outstanding changes); the proprietary BofA FMS component is proxied with CFTC Asset Manager positioning."
             isLoading={bofaBB.isLoading}
             error={bofaBB.error as Error | null}
           >
@@ -571,10 +571,14 @@ export default function DashboardPage() {
 
           {/* PMI - always show */}
           <IndicatorCard 
-            title="ISM Manufacturing PMI" 
+            title={pmi.data?.meta?.seriesId === 'INDPRO' ? 'Industrial Production (PMI Proxy)' : 'ISM Manufacturing PMI'} 
             value={pmi.data?.values?.length ? `${pmi.data.values[pmi.data.values.length - 1]?.value.toFixed(1)}` : 'Loading...'} 
-            subtitle="<50 = contraction"
-            interpretation="A monthly business survey. Above 50 = expansion; below 50 = contraction. Direction and persistence matter more than one print."
+            subtitle={pmi.data?.meta?.seriesId === 'INDPRO' ? 'Proxy (FRED INDPRO)' : '<50 = contraction'}
+            interpretation={
+              pmi.data?.meta?.note
+                ? pmi.data.meta.note
+                : 'A monthly business survey. Above 50 = expansion; below 50 = contraction. Direction and persistence matter more than one print.'
+            }
             isLoading={pmi.isLoading && !pmi.data}
           >
             {pmi.data && (
@@ -592,8 +596,12 @@ export default function DashboardPage() {
           <IndicatorCard 
             title="Consumer Sentiment (UMich)" 
             value={sentiment.data?.values?.length ? `${sentiment.data.values[sentiment.data.values.length - 1]?.value.toFixed(1)}` : 'Loading...'} 
-            subtitle="Monthly"
-            interpretation="How confident households feel. Low = cautious spending; very low can be a contrarian “too pessimistic” signal. High = optimism (sometimes late-cycle)."
+            subtitle={
+              sentiment.data?.values?.length
+                ? `Latest: ${sentiment.data.values[sentiment.data.values.length - 1]?.date} (FRED notes ~1-month delay)`
+                : 'Monthly'
+            }
+            interpretation="How confident households feel. Note: per FRED series notes, UMich sentiment on FRED is delayed by ~1 month, so the latest available observation may lag the calendar date even when you refresh."
             isLoading={sentiment.isLoading && !sentiment.data}
           >
             {sentiment.data && (
